@@ -7,8 +7,8 @@ function SkyHeroBg() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-100 to-white" />
-      <div className="absolute right-8 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_80px_rgba(253,224,71,0.55)]" />
-      <svg className="absolute left-[-90px] top-12 h-40 w-[560px] opacity-95" viewBox="0 0 520 180">
+      <div className="absolute right-8 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_90px_rgba(253,224,71,0.55)]" />
+      <svg className="absolute left-[-90px] top-10 h-40 w-[560px] opacity-95" viewBox="0 0 520 180">
         <path
           d="M150 130c-40 0-72-22-72-49 0-22 22-41 54-46 10-29 45-49 88-49 51 0 92 30 92 66 0 3 0 5-.4 8 39 5 70 26 70 52 0 29-36 52-80 52H150z"
           fill="white"
@@ -27,8 +27,9 @@ export default function HomePage() {
 
       <div className="relative mx-auto max-w-3xl px-5 py-10 md:py-14">
         <div className="flex flex-col items-center text-center">
-          <AppLogo size={84} className="drop-shadow-sm" />
-          <div className="mt-3 text-4xl md:text-5xl font-semibold tracking-tight text-black">
+          {/* výraznejšie logo */}
+          <AppLogo size={140} className="drop-shadow-md" />
+          <div className="mt-2 text-5xl md:text-6xl font-semibold tracking-tight text-black">
             MyPetsDay
           </div>
           <p className="mt-3 max-w-xl text-base md:text-lg text-black/70">
@@ -49,9 +50,9 @@ export default function HomePage() {
 
           <div className="mt-6 grid gap-3 text-sm text-black/70 md:grid-cols-2">
             <div className="rounded-2xl bg-black/[0.03] p-4">✅ Dnešné úlohy na 1 klik</div>
-            <div className="rounded-2xl bg-black/[0.03] p-4">📅 Týždenný prehľad (rozklik)</div>
+            <div className="rounded-2xl bg-black/[0.03] p-4">📅 Týždenný prehľad</div>
             <div className="rounded-2xl bg-black/[0.03] p-4">📧 Ranné pripomenutie</div>
-            <div className="rounded-2xl bg-black/[0.03] p-4">🐶 Viac miláčikov + plemená</div>
+            <div className="rounded-2xl bg-black/[0.03] p-4">🐶 Viac miláčikov + organizácia</div>
           </div>
         </div>
       </div>

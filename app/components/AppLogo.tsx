@@ -1,7 +1,7 @@
 import Image from "next/image";
 
 export default function AppLogo({
-  size = 56,
+  size = 92,
   className = "",
 }: {
   size?: number;

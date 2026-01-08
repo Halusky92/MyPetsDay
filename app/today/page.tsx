@@ -66,7 +66,7 @@ function lerp(a: number, b: number, t: number) {
 }
 function progressColor(p01: number) {
   const t = clamp01(p01);
-  const hue = lerp(0, 120, t);
+  const hue = lerp(0, 120, t); // red->green
   return `hsl(${hue} 80% 40%)`;
 }
 
@@ -74,7 +74,7 @@ function TodayBackground() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-100 to-white" />
-      <div className="absolute right-8 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_80px_rgba(253,224,71,0.55)]" />
+      <div className="absolute right-8 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_90px_rgba(253,224,71,0.55)]" />
       <svg className="absolute left-[-90px] top-10 h-40 w-[560px] opacity-95" viewBox="0 0 520 180">
         <path
           d="M150 130c-40 0-72-22-72-49 0-22 22-41 54-46 10-29 45-49 88-49 51 0 92 30 92 66 0 3 0 5-.4 8 39 5 70 26 70 52 0 29-36 52-80 52H150z"
@@ -82,104 +82,74 @@ function TodayBackground() {
           opacity="0.95"
         />
       </svg>
-      <svg className="absolute right-[-140px] top-28 h-40 w-[560px] opacity-85" viewBox="0 0 520 180">
-        <path
-          d="M150 130c-40 0-72-22-72-49 0-22 22-41 54-46 10-29 45-49 88-49 51 0 92 30 92 66 0 3 0 5-.4 8 39 5 70 26 70 52 0 29-36 52-80 52H150z"
-          fill="white"
-          opacity="0.95"
-        />
-      </svg>
-
-      <svg className="absolute bottom-24 left-0 right-0 h-44 w-full opacity-65" viewBox="0 0 1200 220" preserveAspectRatio="none">
-        <path d="M0 170 C 200 140, 380 190, 600 160 C 820 130, 980 180, 1200 150 L1200 220 L0 220 Z" fill="rgba(0,0,0,0.06)" />
-        <g fill="rgba(0,0,0,0.10)">
-          <rect x="160" y="110" width="70" height="70" rx="10" />
-          <rect x="260" y="90" width="90" height="90" rx="12" />
-          <rect x="390" y="105" width="60" height="75" rx="10" />
-          <rect x="840" y="95" width="110" height="100" rx="14" />
-          <rect x="980" y="115" width="70" height="80" rx="12" />
-        </g>
-      </svg>
-
       <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-emerald-200 via-emerald-100 to-transparent" />
     </div>
   );
 }
 
-function SegmentedRing({ total, done }: { total: number; done: number }) {
+function RingProgress({
+  total,
+  done,
+  size = 180,
+  animate = true,
+}: {
+  total: number;
+  done: number;
+  size?: number;
+  animate?: boolean;
+}) {
   const p01 = total === 0 ? 0 : done / total;
-  const col = progressColor(p01);
-
-  const r = 56;
-  const c = 2 * Math.PI * r;
-  const stroke = 14;
   const pct = Math.round(p01 * 100);
 
-  const showSegments = total > 0 && total <= 120;
+  const r = 56;
+  const stroke = 14;
+  const c = 2 * Math.PI * r;
 
-  if (!showSegments) {
-    const dash = c * clamp01(p01);
-    const gap = c - dash;
+  const [animP, setAnimP] = useState(0);
 
-    return (
-      <div className="relative grid place-items-center">
-        <svg width={170} height={170} viewBox="0 0 140 140">
-          <circle cx="70" cy="70" r={r} stroke="rgba(0,0,0,0.10)" strokeWidth={stroke} fill="none" />
-          <circle
-            cx="70"
-            cy="70"
-            r={r}
-            stroke={col}
-            strokeWidth={stroke}
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${gap}`}
-            transform="rotate(-90 70 70)"
-          />
-        </svg>
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="text-3xl font-semibold text-black">{pct}%</div>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!animate) {
+      setAnimP(p01);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const from = animP;
+    const to = p01;
+    const dur = 700;
 
-  const segment = c / total;
-  const segLen = segment * 0.78;
-  const gapLen = segment - segLen;
-  const dashAll = `${segLen} ${gapLen}`;
+    const tick = (now: number) => {
+      const t = clamp01((now - start) / dur);
+      // easeOut
+      const e = 1 - Math.pow(1 - t, 3);
+      setAnimP(from + (to - from) * e);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p01]);
+
+  const col = progressColor(animP);
+  const dash = c * animP;
+  const gap = c - dash;
 
   return (
     <div className="relative grid place-items-center">
-      <svg width={170} height={170} viewBox="0 0 140 140">
+      <svg width={size} height={size} viewBox="0 0 140 140">
+        <circle cx="70" cy="70" r={r} stroke="rgba(0,0,0,0.12)" strokeWidth={stroke} fill="none" />
         <circle
           cx="70"
           cy="70"
           r={r}
-          stroke="rgba(0,0,0,0.12)"
+          stroke={col}
           strokeWidth={stroke}
           fill="none"
           strokeLinecap="round"
-          strokeDasharray={dashAll}
+          strokeDasharray={`${dash} ${gap}`}
           transform="rotate(-90 70 70)"
         />
-        {Array.from({ length: done }).map((_, i) => (
-          <circle
-            key={i}
-            cx="70"
-            cy="70"
-            r={r}
-            stroke={col}
-            strokeWidth={stroke}
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={dashAll}
-            strokeDashoffset={-(segment * i)}
-            transform="rotate(-90 70 70)"
-          />
-        ))}
       </svg>
-
       <div className="pointer-events-none absolute inset-0 grid place-items-center">
         <div className="text-3xl font-semibold text-black">{pct}%</div>
       </div>
@@ -206,6 +176,33 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   );
 }
 
+function calcBirthdayInfo(birthdayISO: string | null) {
+  if (!birthdayISO) return null;
+
+  const [y, m, d] = birthdayISO.split("-").map(Number);
+  const b = new Date(y, m - 1, d);
+  const now = new Date();
+
+  const msDay = 24 * 60 * 60 * 1000;
+
+  // age years + days since last birthday
+  let years = now.getFullYear() - b.getFullYear();
+  const thisYearsBirthday = new Date(now.getFullYear(), b.getMonth(), b.getDate());
+  if (now < thisYearsBirthday) years -= 1;
+
+  const lastBirthday = new Date(now.getFullYear(), b.getMonth(), b.getDate());
+  if (now < lastBirthday) lastBirthday.setFullYear(lastBirthday.getFullYear() - 1);
+
+  const daysSince = Math.floor((now.getTime() - lastBirthday.getTime()) / msDay);
+
+  const nextBirthday = new Date(now.getFullYear(), b.getMonth(), b.getDate());
+  if (now >= nextBirthday) nextBirthday.setFullYear(nextBirthday.getFullYear() + 1);
+
+  const daysToNext = Math.ceil((nextBirthday.getTime() - now.getTime()) / msDay);
+
+  return { years, daysSince, daysToNext };
+}
+
 const DOG_BREEDS = [
   "Mix / Neviem",
   "Dalmatín",
@@ -222,21 +219,36 @@ const DOG_BREEDS = [
 ];
 
 export default function TodayPage() {
-  const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const [pets, setPets] = useState<Pet[]>([]);
-  const [showAddPet, setShowAddPet] = useState(false);
-  const [petName, setPetName] = useState("");
-  const [petType, setPetType] = useState("dog");
-  const [petBreed, setPetBreed] = useState("Mix / Neviem");
-  const [petBirthday, setPetBirthday] = useState("");
-
   const [tasks, setTasks] = useState<Task[]>([]);
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
   const [doneByDate, setDoneByDate] = useState<Map<string, Set<string>>>(new Map());
 
+  // UI states
+  const [remind7, setRemind7] = useState(false);
+  const [filter, setFilter] = useState<"all" | "open" | "done">("all");
+
+  // add pet
+  const [showAddPet, setShowAddPet] = useState(false);
+  const [petName, setPetName] = useState("");
+  const [petType, setPetType] = useState("dog");
+  const [petBreed, setPetBreed] = useState("Mix / Neviem");
+  const [petBreedCustom, setPetBreedCustom] = useState("");
+  const [petBirthday, setPetBirthday] = useState("");
+
+  // edit pet
+  const [editPetId, setEditPetId] = useState<string | null>(null);
+  const [editPetName, setEditPetName] = useState("");
+  const [editPetType, setEditPetType] = useState("dog");
+  const [editPetBreed, setEditPetBreed] = useState("Mix / Neviem");
+  const [editPetBreedCustom, setEditPetBreedCustom] = useState("");
+  const [editPetBirthday, setEditPetBirthday] = useState("");
+
+  // add task
   const [taskPetId, setTaskPetId] = useState<string>("");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskCategory, setTaskCategory] = useState("walk");
@@ -247,18 +259,13 @@ export default function TodayPage() {
   const [savingPet, setSavingPet] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
 
-  const [openWeek, setOpenWeek] = useState(false);
-  const [openArchived, setOpenArchived] = useState(false);
-
-  const [remind7, setRemind7] = useState(false);
-
   const today = useMemo(() => todayISO(), []);
   const weekStart = useMemo(() => startOfWeekMondayISO(today), [today]);
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysISO(weekStart, i)), [weekStart]);
-
+  const weekDaysIso = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysISO(weekStart, i)), [weekStart]);
   const rangeStart = weekStart;
   const rangeEnd = useMemo(() => addDaysISO(weekStart, 6), [weekStart]);
 
+  // persist remind7 locally for now
   useEffect(() => {
     const saved = localStorage.getItem("mypetsday_remind7");
     setRemind7(saved === "1");
@@ -298,7 +305,7 @@ export default function TodayPage() {
       .select("id,pet_id,title,category,repeat_type,start_date,weekdays,is_archived,created_at")
       .eq("is_archived", true)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(50);
     if (error) throw error;
     return (data ?? []) as Task[];
   }
@@ -309,7 +316,6 @@ export default function TodayPage() {
       .select("task_id, completed_on")
       .gte("completed_on", rangeStart)
       .lte("completed_on", rangeEnd);
-
     if (error) throw error;
 
     const map = new Map<string, Set<string>>();
@@ -324,7 +330,6 @@ export default function TodayPage() {
 
   useEffect(() => {
     let mounted = true;
-
     async function init() {
       setError("");
       const user = await requireUser();
@@ -360,7 +365,6 @@ export default function TodayPage() {
         setLoading(false);
       }
     }
-
     init();
     return () => {
       mounted = false;
@@ -391,28 +395,69 @@ export default function TodayPage() {
     return doneByDate.get(dateISO)?.has(taskId) ?? false;
   }
 
-  const mainPetName = pets[0]?.name ?? "tvoj psík";
-  const tasksToday = useMemo(() => tasks.filter((t) => isDueOnDate(t, today)), [tasks, today]);
+  // Today tasks + filter
+  const tasksTodayAll = useMemo(() => tasks.filter((t) => isDueOnDate(t, today)), [tasks, today]);
+  const tasksToday = useMemo(() => {
+    if (filter === "all") return tasksTodayAll;
+    if (filter === "open") return tasksTodayAll.filter((t) => !isDone(t.id, today));
+    return tasksTodayAll.filter((t) => isDone(t.id, today));
+  }, [tasksTodayAll, filter, today]);
 
-  const todayDone = tasksToday.filter((t) => isDone(t.id, today)).length;
-  const todayTotal = tasksToday.length;
+  const todayDone = tasksTodayAll.filter((t) => isDone(t.id, today)).length;
+  const todayTotal = tasksTodayAll.length;
   const todayLeft = Math.max(0, todayTotal - todayDone);
 
+  // week counts (due occurrences)
   const weekCounts = useMemo(() => {
     let total = 0;
     let done = 0;
-    for (const day of weekDays) {
+    for (const day of weekDaysIso) {
       const due = tasks.filter((t) => isDueOnDate(t, day));
       total += due.length;
       const doneSet = doneByDate.get(day) ?? new Set<string>();
       done += due.filter((t) => doneSet.has(t.id)).length;
     }
     return { total, done };
-  }, [weekDays, tasks, doneByDate]);
+  }, [weekDaysIso, tasks, doneByDate]);
+
+  // streak (days in a row with >=1 done)
+  const streak = useMemo(() => {
+    let s = 0;
+    for (let i = 0; i < 14; i++) {
+      const day = addDaysISO(today, -i);
+      const doneSet = doneByDate.get(day);
+      if (doneSet && doneSet.size > 0) s += 1;
+      else break;
+    }
+    return s;
+  }, [doneByDate, today]);
+
+  const mainPetName = pets[0]?.name ?? "Tvoj psík";
 
   async function signOut() {
     await supabase.auth.signOut();
     window.location.href = "/login";
+  }
+
+  function toggleWeekday(d: number) {
+    setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
+  }
+
+  async function refreshAll() {
+    try {
+      const [p, t, a, doneMap] = await Promise.all([
+        loadPets(),
+        loadTasksActive(),
+        loadTasksArchived(),
+        loadDoneInRange(),
+      ]);
+      setPets(p);
+      setTasks(t);
+      setArchivedTasks(a);
+      setDoneByDate(doneMap);
+    } catch (e: any) {
+      setError(e.message ?? "Refresh failed");
+    }
   }
 
   async function addPet() {
@@ -425,11 +470,16 @@ export default function TodayPage() {
       return;
     }
 
+    const finalBreed =
+      petType === "dog"
+        ? (petBreed === "CUSTOM" ? petBreedCustom.trim() : petBreed)
+        : null;
+
     const { error } = await supabase.from("pets").insert({
       user_id: user.id,
       name: petName.trim(),
       type: petType,
-      breed: petType === "dog" ? petBreed : null,
+      breed: petType === "dog" ? (finalBreed || null) : null,
       birthday: petBirthday ? petBirthday : null,
     });
 
@@ -442,12 +492,86 @@ export default function TodayPage() {
     setPetName("");
     setPetBirthday("");
     setPetBreed("Mix / Neviem");
+    setPetBreedCustom("");
     setSavingPet(false);
 
-    const p = await loadPets();
-    setPets(p);
-    if (p.length > 0) setTaskPetId(p[0].id);
+    await refreshAll();
     setShowAddPet(false);
+  }
+
+  function openEditPet(p: Pet) {
+    setEditPetId(p.id);
+    setEditPetName(p.name);
+    setEditPetType(p.type);
+    const breed = p.breed ?? "Mix / Neviem";
+    // if not in list -> custom
+    if (p.type === "dog" && breed && !DOG_BREEDS.includes(breed)) {
+      setEditPetBreed("CUSTOM");
+      setEditPetBreedCustom(breed);
+    } else {
+      setEditPetBreed(breed);
+      setEditPetBreedCustom("");
+    }
+    setEditPetBirthday(p.birthday ?? "");
+  }
+
+  async function saveEditPet() {
+    if (!editPetId) return;
+
+    setError("");
+
+    const finalBreed =
+      editPetType === "dog"
+        ? (editPetBreed === "CUSTOM" ? editPetBreedCustom.trim() : editPetBreed)
+        : null;
+
+    const { error } = await supabase
+      .from("pets")
+      .update({
+        name: editPetName.trim(),
+        type: editPetType,
+        breed: editPetType === "dog" ? (finalBreed || null) : null,
+        birthday: editPetBirthday ? editPetBirthday : null,
+      })
+      .eq("id", editPetId);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setEditPetId(null);
+    await refreshAll();
+  }
+
+  async function removePet(p: Pet) {
+    // confirm
+    const ok = confirm(`Naozaj chceš odstrániť miláčika "${p.name}"?\n\nOdporúčanie: najprv archivuj úlohy, aby si mal poriadok.`);
+    if (!ok) return;
+
+    setError("");
+
+    // guard: if tasks exist, block delete (safer)
+    const { data: t, error: tErr } = await supabase
+      .from("care_tasks")
+      .select("id")
+      .eq("pet_id", p.id)
+      .limit(1);
+
+    if (tErr) {
+      setError(tErr.message);
+      return;
+    }
+    if ((t ?? []).length > 0) {
+      setError("Najprv odstráň alebo archivuj úlohy tohto miláčika, potom ho môžeš zmazať.");
+      return;
+    }
+
+    const { error } = await supabase.from("pets").delete().eq("id", p.id);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await refreshAll();
   }
 
   async function addTask() {
@@ -472,6 +596,7 @@ export default function TodayPage() {
     };
 
     const { error } = await supabase.from("care_tasks").insert(payload);
+
     if (error) {
       setSavingTask(false);
       setError(error.message);
@@ -481,8 +606,7 @@ export default function TodayPage() {
     setTaskTitle("");
     setSavingTask(false);
 
-    const t = await loadTasksActive();
-    setTasks(t);
+    await refreshAll();
   }
 
   async function markDoneOn(taskId: string, dateISO: string) {
@@ -550,11 +674,7 @@ export default function TodayPage() {
       setError(error.message);
       return;
     }
-    // refresh both
-    const [t, a] = await Promise.all([loadTasksActive(), loadTasksArchived()]);
-    setTasks(t);
-    setArchivedTasks(a);
-    setOpenArchived(true);
+    await refreshAll();
   }
 
   async function restoreTask(taskId: string) {
@@ -564,27 +684,40 @@ export default function TodayPage() {
       setError(error.message);
       return;
     }
-    const [t, a] = await Promise.all([loadTasksActive(), loadTasksArchived()]);
-    setTasks(t);
-    setArchivedTasks(a);
+    await refreshAll();
   }
 
-  function toggleWeekday(d: number) {
-    setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
+  async function deleteTaskForever(taskId: string) {
+    const ok = confirm("Naozaj chceš túto úlohu natrvalo odstrániť? (História splnení zostane, ak ju nemažeš zvlášť)");
+    if (!ok) return;
+
+    setError("");
+    const { error } = await supabase.from("care_tasks").delete().eq("id", taskId);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await refreshAll();
   }
 
-  const dayLabel = (iso: string) => {
-    const w = weekday1to7FromISO(iso);
+  // Weekly cards like the inspiration app
+  const weekCards = useMemo(() => {
     const names: Record<number, string> = { 1: "Po", 2: "Ut", 3: "St", 4: "Št", 5: "Pi", 6: "So", 7: "Ne" };
-    return `${names[w]} ${iso}`;
-  };
+    return weekDaysIso.map((day) => {
+      const w = weekday1to7FromISO(day);
+      const due = tasks.filter((t) => isDueOnDate(t, day));
+      const doneSet = doneByDate.get(day) ?? new Set<string>();
+      const doneCount = due.filter((t) => doneSet.has(t.id)).length;
+      return { day, label: names[w], due, doneCount };
+    });
+  }, [weekDaysIso, tasks, doneByDate]);
 
   if (loading) {
     return (
       <main className="relative min-h-screen">
         <TodayBackground />
         <div className="relative mx-auto max-w-4xl px-5 py-10">
-          <div className="rounded-[2rem] border border-black/10 bg-white/80 p-7 shadow-sm backdrop-blur">
+          <div className="rounded-[2rem] border border-black/10 bg-white/85 p-7 shadow-sm backdrop-blur">
             <div className="text-xl font-semibold text-black">Loading…</div>
             <p className="mt-2 text-black/60">Pripravujem tvoj deň.</p>
           </div>
@@ -593,23 +726,29 @@ export default function TodayPage() {
     );
   }
 
+  const confetti = todayTotal > 0 && todayDone === todayTotal;
+
   return (
     <main className="relative min-h-screen">
       <TodayBackground />
 
       <div className="relative mx-auto max-w-4xl px-5 py-10">
-        {/* HEADER (viac app vibe) */}
+        {/* Header */}
         <div className="rounded-[2rem] border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <AppLogo size={58} className="drop-shadow-sm" />
+            <div className="flex items-center gap-4">
+              {/* 3x bigger logo */}
+              <AppLogo size={140} className="drop-shadow-md" />
               <div>
-                <div className="text-xl md:text-2xl font-semibold tracking-tight text-black">MyPetsDay</div>
-                <div className="text-sm text-black/65">
-                  {mainPetName}{" "}
-                  {todayLeft === 0
-                    ? "má dnes splnené všetko. 🐾"
-                    : `čeká ešte ${todayLeft} úloh dnes.`}
+                <div className="text-2xl md:text-3xl font-semibold tracking-tight text-black">
+                  MyPetsDay
+                </div>
+                <div className="mt-1 text-sm md:text-base text-black/70">
+                  {mainPetName} {todayLeft === 0 ? "má dnes hotovo všetko 🐾" : `čeká ešte ${todayLeft} úloh dnes.`}
+                  {confetti ? <span className="ml-2">🎉</span> : null}
+                </div>
+                <div className="mt-1 text-xs text-black/55">
+                  Streak: <span className="font-semibold text-black">{streak}</span> dní po sebe si splnil aspoň 1 úlohu
                 </div>
               </div>
             </div>
@@ -622,130 +761,113 @@ export default function TodayPage() {
             </button>
           </div>
 
-          <div className="mt-4 flex items-center justify-between rounded-2xl border border-black/10 bg-white px-4 py-3">
-            <div>
-              <div className="text-sm font-semibold text-black">Ranné pripomenutie</div>
-              <div className="text-xs text-black/55">Každý deň o 7:00 (email)</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="flex items-center justify-between rounded-2xl border border-black/10 bg-white px-4 py-3">
+              <div>
+                <div className="text-sm font-semibold text-black">Ranné pripomenutie</div>
+                <div className="text-xs text-black/55">Každý deň o 7:00 (email)</div>
+              </div>
+              <Toggle value={remind7} onChange={setRemind7} />
             </div>
-            <Toggle value={remind7} onChange={setRemind7} />
+
+            <button
+              onClick={refreshAll}
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-black/5"
+            >
+              Refresh
+            </button>
           </div>
 
           {error && <p className="mt-3 text-sm text-red-700">❌ {error}</p>}
         </div>
 
-        {/* WEEK PROGRESS */}
+        {/* Weekly overview (no dropdown) */}
         <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur">
-          <div className="text-sm font-semibold text-black/70">Týždenný progres</div>
-
-          <div className="mt-3 grid gap-5 md:grid-cols-[180px_1fr] md:items-center">
-            <div className="flex justify-center md:justify-start">
-              <SegmentedRing total={weekCounts.total} done={weekCounts.done} />
-            </div>
-
-            <div className="text-black">
-              <div className="text-lg md:text-xl font-semibold">Tvoje zvieratko tento týždeň splnilo</div>
-              <div className="mt-1 text-3xl font-semibold">
-                {weekCounts.done} <span className="text-black/60 text-base font-medium">z</span> {weekCounts.total}
-              </div>
-              <div className="mt-2 text-sm text-black/60">
-                Počítajú sa všetky výskyty úloh v týždni (presne podľa toho, koľko úloh si nastavíš).
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-black/70">Týždenný progres</div>
+              <div className="mt-1 text-xl font-semibold text-black">
+                {weekCounts.done} z {weekCounts.total}
               </div>
             </div>
+            <RingProgress total={weekCounts.total} done={weekCounts.done} />
           </div>
 
-          {/* WEEK PLAN collapsible */}
-          <button
-            onClick={() => setOpenWeek((v) => !v)}
-            className="mt-5 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black hover:bg-black/5"
-          >
-            📅 Týždenný plán {openWeek ? "— skryť" : "— rozkliknúť"}
-          </button>
-
-          {openWeek && (
-            <div className="mt-3 space-y-2">
-              {weekDays.map((day) => {
-                const due = tasks.filter((t) => isDueOnDate(t, day));
-                const doneSet = doneByDate.get(day) ?? new Set<string>();
-                const doneCount = due.filter((t) => doneSet.has(t.id)).length;
-
+          <div className="mt-5 overflow-x-auto">
+            <div className="flex gap-3 min-w-max">
+              {weekCards.map((c) => {
+                const pct = c.due.length === 0 ? 0 : Math.round((c.doneCount / c.due.length) * 100);
                 return (
-                  <div key={day} className="rounded-2xl border border-black/10 bg-white p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-black">{dayLabel(day)}</div>
-                      <div className="text-sm text-black/60">
-                        {doneCount}/{due.length}
-                      </div>
+                  <div
+                    key={c.day}
+                    className="w-28 shrink-0 rounded-2xl border border-black/10 bg-white p-3"
+                  >
+                    <div className="text-sm font-semibold text-black">{c.label}</div>
+                    <div className="mt-2 text-xs text-black/60">{c.doneCount}/{c.due.length}</div>
+                    <div className="mt-2 h-2 rounded-full bg-black/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${pct}%`, background: progressColor(pct / 100) }}
+                      />
                     </div>
-
-                    {due.length === 0 ? (
-                      <div className="mt-2 text-sm text-black/50">Žiadne úlohy.</div>
-                    ) : (
-                      <div className="mt-3 space-y-2">
-                        {due.map((t) => {
-                          const d = doneSet.has(t.id);
-                          return (
-                            <div
-                              key={t.id}
-                              className="flex items-center justify-between rounded-2xl bg-black/[0.03] px-4 py-3"
-                            >
-                              <div className="text-sm font-medium text-black">
-                                {d ? "✅" : "⬜"} {t.title}{" "}
-                                <span className="text-black/50">
-                                  • {petNameById.get(t.pet_id) ?? "Pet"}
-                                </span>
-                              </div>
-
-                              {d ? (
-                                <button
-                                  onClick={() => unmarkDoneOn(t.id, day)}
-                                  className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-black/5"
-                                >
-                                  Undo
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => markDoneOn(t.id, day)}
-                                  className="rounded-2xl bg-black px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
-                                >
-                                  Hotovo
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* PETS */}
+        {/* Pets – simpler organization text + age + next birthday */}
         <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div className="text-lg font-semibold text-black">🐾 Miláčikovia</div>
             <button
               onClick={() => setShowAddPet((v) => !v)}
               className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-black/5"
             >
-              {showAddPet ? "Zavrieť" : "+ Add new pet"}
+              {showAddPet ? "Zavrieť" : "+ Pridať miláčika"}
             </button>
           </div>
 
           {!showAddPet && pets.length > 0 && (
-            <div className="mt-4 grid gap-2 md:grid-cols-2">
-              {pets.slice(0, 2).map((p) => (
-                <div key={p.id} className="rounded-2xl border border-black/10 bg-white px-4 py-3">
-                  <div className="font-semibold text-black">
-                    {p.type === "dog" ? "🐶" : p.type === "cat" ? "🐱" : "🐾"} {p.name}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {pets.map((p) => {
+                const binfo = calcBirthdayInfo(p.birthday);
+                const breedText =
+                  p.type === "dog"
+                    ? (p.breed ? `🐶 Plemeno: ${p.breed}` : "🐶 Psík")
+                    : p.type === "cat"
+                    ? "🐱 Mačička"
+                    : "🐾 Miláčik";
+
+                return (
+                  <div key={p.id} className="rounded-2xl border border-black/10 bg-white p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-lg font-semibold text-black">{p.name}</div>
+                        <div className="mt-1 text-sm text-black/65">{breedText}</div>
+
+                        {binfo ? (
+                          <div className="mt-2 text-xs text-black/55">
+                            Vek: <span className="font-semibold text-black">{binfo.years}</span> rokov{" "}
+                            <span className="font-semibold text-black">{binfo.daysSince}</span> dní •
+                            Do narodenín: <span className="font-semibold text-black">{binfo.daysToNext}</span> dní
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-xs text-black/45">Narodeniny: nezadané</div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => openEditPet(p)}
+                        className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-black/5"
+                      >
+                        Upraviť
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-sm text-black/60">
-                    {p.type === "dog" && p.breed ? `Plemeno: ${p.breed}` : "Plemeno: —"}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -786,11 +908,19 @@ export default function TodayPage() {
                     onChange={(e) => setPetBreed(e.target.value)}
                   >
                     {DOG_BREEDS.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
+                      <option key={b} value={b}>{b}</option>
                     ))}
+                    <option value="CUSTOM">Vlastné (napíšem)</option>
                   </select>
+
+                  {petBreed === "CUSTOM" && (
+                    <input
+                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                      placeholder="Napíš plemeno"
+                      value={petBreedCustom}
+                      onChange={(e) => setPetBreedCustom(e.target.value)}
+                    />
+                  )}
                 </div>
               )}
 
@@ -805,7 +935,93 @@ export default function TodayPage() {
           )}
         </div>
 
-        {/* ADD TASK */}
+        {/* Edit Pet modal-ish card (bottom section) */}
+        {editPetId && (
+          <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/90 p-6 shadow-sm backdrop-blur">
+            <div className="text-lg font-semibold text-black">Upraviť miláčika</div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <input
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                value={editPetName}
+                onChange={(e) => setEditPetName(e.target.value)}
+              />
+
+              <select
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                value={editPetType}
+                onChange={(e) => setEditPetType(e.target.value)}
+              >
+                <option value="dog">Dog 🐶</option>
+                <option value="cat">Cat 🐱</option>
+                <option value="other">Other 🐾</option>
+              </select>
+
+              <input
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                type="date"
+                value={editPetBirthday}
+                onChange={(e) => setEditPetBirthday(e.target.value)}
+              />
+            </div>
+
+            {editPetType === "dog" && (
+              <div className="mt-3">
+                <label className="block text-sm font-semibold text-black">Plemeno</label>
+                <select
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                  value={editPetBreed}
+                  onChange={(e) => setEditPetBreed(e.target.value)}
+                >
+                  {DOG_BREEDS.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                  <option value="CUSTOM">Vlastné (napíšem)</option>
+                </select>
+
+                {editPetBreed === "CUSTOM" && (
+                  <input
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                    placeholder="Napíš plemeno"
+                    value={editPetBreedCustom}
+                    onChange={(e) => setEditPetBreedCustom(e.target.value)}
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                onClick={saveEditPet}
+                className="rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Uložiť
+              </button>
+              <button
+                onClick={() => setEditPetId(null)}
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-black/5"
+              >
+                Zrušiť
+              </button>
+
+              {/* remove with confirm */}
+              {(() => {
+                const p = pets.find((x) => x.id === editPetId);
+                if (!p) return null;
+                return (
+                  <button
+                    onClick={() => removePet(p)}
+                    className="ml-auto rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-100"
+                  >
+                    Odstrániť miláčika
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Add Task */}
         <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur">
           <div className="text-lg font-semibold text-black">➕ Pridať úlohu</div>
 
@@ -820,9 +1036,7 @@ export default function TodayPage() {
                 <option value="">Najprv pridaj miláčika</option>
               ) : (
                 pets.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
+                  <option key={p.id} value={p.id}>{p.name}</option>
                 ))
               )}
             </select>
@@ -900,17 +1114,40 @@ export default function TodayPage() {
           </button>
         </div>
 
-        {/* TODAY TASKS */}
+        {/* Today Tasks */}
         <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/90 p-6 shadow-sm backdrop-blur">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div className="text-xl font-semibold text-black">✅ Dnešné úlohy</div>
             <div className="text-sm text-black/60">{todayDone}/{todayTotal}</div>
           </div>
 
+          {/* filter pills */}
+          <div className="mt-3 flex gap-2">
+            {[
+              ["all", "Všetko"],
+              ["open", "Nesplnené"],
+              ["done", "Splnené"],
+            ].map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setFilter(k as any)}
+                className={`rounded-2xl px-3 py-2 text-xs font-semibold border ${
+                  filter === k ? "bg-black text-white border-black" : "bg-white text-black border-black/10 hover:bg-black/5"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="mt-4 space-y-2">
-            {tasksToday.length === 0 ? (
+            {tasksTodayAll.length === 0 ? (
               <div className="rounded-2xl bg-black/[0.03] p-4 text-black/70">
                 Dnes nič nemáš. Pridaj úlohu a ideš ďalej 🟢
+              </div>
+            ) : tasksToday.length === 0 ? (
+              <div className="rounded-2xl bg-black/[0.03] p-4 text-black/70">
+                Podľa filtra tu nič nie je.
               </div>
             ) : (
               tasksToday.map((t) => {
@@ -969,36 +1206,42 @@ export default function TodayPage() {
           </div>
         </div>
 
-        {/* ARCHIVED TASKS */}
-        <div className="mt-4 rounded-[2rem] border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
-          <button
-            onClick={() => setOpenArchived((v) => !v)}
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black hover:bg-black/5"
-          >
-            🗃️ Archivované ({archivedTasks.length}) {openArchived ? "— skryť" : "— zobraziť"}
-          </button>
+        {/* Archived: restore OR delete */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur">
+          <div className="flex items-center justify-between">
+            <div className="text-lg font-semibold text-black">🗃️ Archivované</div>
+            <div className="text-sm text-black/60">{archivedTasks.length}</div>
+          </div>
 
-          {openArchived && (
-            <div className="mt-3 space-y-2">
-              {archivedTasks.length === 0 ? (
-                <div className="text-sm text-black/55">Zatiaľ nič.</div>
-              ) : (
-                archivedTasks.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-2xl bg-black/[0.03] px-4 py-3">
-                    <div className="text-sm font-medium text-black">
+          <div className="mt-4 space-y-2">
+            {archivedTasks.length === 0 ? (
+              <div className="rounded-2xl bg-black/[0.03] p-4 text-black/70">Zatiaľ nič.</div>
+            ) : (
+              archivedTasks.map((t) => (
+                <div key={t.id} className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-black">
                       {t.title} <span className="text-black/50">• {petNameById.get(t.pet_id) ?? "Pet"}</span>
                     </div>
-                    <button
-                      onClick={() => restoreTask(t.id)}
-                      className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-black/5"
-                    >
-                      Obnoviť
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => restoreTask(t.id)}
+                        className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-black/5"
+                      >
+                        Obnoviť
+                      </button>
+                      <button
+                        onClick={() => deleteTaskForever(t.id)}
+                        className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                      >
+                        Odstrániť
+                      </button>
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
-          )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         <div className="mt-8 text-center text-xs text-black/50">
