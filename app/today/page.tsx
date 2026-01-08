@@ -585,7 +585,7 @@ export default function TodayPage() {
         <TodayBackground />
         <div className="relative mx-auto max-w-4xl px-5 py-10">
           <div className="rounded-[2rem] border border-black/10 bg-white/80 p-7 shadow-sm backdrop-blur">
-            <div classжаўName="text-xl font-semibold text-black">Loading…</div>
+            <div className="text-xl font-semibold text-black">Loading…</div>
             <p className="mt-2 text-black/60">Pripravujem tvoj deň.</p>
           </div>
         </div>
