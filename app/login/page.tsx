@@ -5,19 +5,27 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppLogo from "../components/AppLogo";
 
-function CalmBg() {
+// --- KONZISTENTNÉ POZADIE (Rovnaké ako na Home a Today) ---
+function EnhancedLoginBg() {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-100 to-white" />
-      <div className="absolute left-10 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_80px_rgba(253,224,71,0.55)]" />
-      <svg className="absolute left-[-120px] top-24 h-40 w-[560px] opacity-90" viewBox="0 0 520 180">
-        <path
-          d="M150 130c-40 0-72-22-72-49 0-22 22-41 54-46 10-29 45-49 88-49 51 0 92 30 92 66 0 3 0 5-.4 8 39 5 70 26 70 52 0 29-36 52-80 52H150z"
-          fill="white"
-          opacity="0.95"
-        />
+    <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
+      <div className="absolute inset-0 bg-gradient-to-b from-sky-200 via-white to-emerald-50" />
+      <div className="absolute right-10 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_90px_rgba(253,224,71,0.55)] opacity-60" />
+      
+      {/* Ilustrácia: Búda */}
+      <svg className="absolute bottom-10 right-[-20px] h-64 w-64 opacity-20 md:opacity-30" viewBox="0 0 200 200">
+        <path d="M40 180V90L100 40L160 90V180H40Z" fill="#8B4513" />
+        <path d="M100 40L30 95V105L100 50L170 105V95L100 40Z" fill="#5D2E0A" />
+        <path d="M80 180V140C80 128.954 88.9543 120 100 120C111.046 120 120 128.954 120 140V180H80Z" fill="#3E1F07" />
       </svg>
-      <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-emerald-100 to-transparent" />
+
+      {/* Ilustrácia: Miska */}
+      <svg className="absolute bottom-20 left-10 h-32 w-32 opacity-20 md:opacity-30" viewBox="0 0 100 100">
+        <path d="M10 80C10 70 30 65 50 65C70 65 90 70 90 80H10Z" fill="#94A3B8" />
+        <path d="M30 65L40 50H60L70 65H30Z" fill="#64748B" />
+      </svg>
+      
+      <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-emerald-100/50 to-transparent" />
     </div>
   );
 }
@@ -35,15 +43,12 @@ export default function LoginPage() {
       const { data } = await supabase.auth.getUser();
       if (!cancelled && data.user) window.location.href = "/today";
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   async function sendLink() {
     setStatus("sending");
     setError("");
-
     const redirectTo = `${window.location.origin}/today`;
 
     const { error } = await supabase.auth.signInWithOtp({
@@ -60,63 +65,82 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen">
-      <CalmBg />
+    <main className="relative min-h-screen flex flex-col items-center justify-center px-5">
+      <EnhancedLoginBg />
 
-      <div className="relative mx-auto max-w-xl px-5 py-10">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="inline-flex items-center gap-3">
-            <AppLogo size={46} />
-            <div>
-              <div className="text-lg font-semibold text-black">MyPetsDay</div>
-              <div className="text-xs text-black/55">Prihlásenie</div>
-            </div>
+      <div className="w-full max-w-md">
+        {/* LOGO A NÁVRAT SPÄŤ */}
+        <div className="flex flex-col items-center mb-8">
+          <Link href="/" className="group transition-transform hover:scale-110">
+            <AppLogo size={100} className="drop-shadow-xl" />
           </Link>
-
-          <Link
-            href="/"
-            className="rounded-2xl border border-black/10 bg-white/70 px-4 py-2 text-sm font-semibold backdrop-blur hover:bg-white"
-          >
-            Späť
-          </Link>
+          <h1 className="mt-4 text-3xl font-black tracking-tight text-gray-900">MyPetsDay</h1>
+          <p className="text-gray-500 font-bold uppercase text-[10px] tracking-widest mt-1">Bezpečný prístup</p>
         </div>
 
-        <div className="mt-8 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur">
-          <div className="text-2xl font-semibold text-black">Pokračuj cez email</div>
-          <p className="mt-2 text-sm text-black/65">Pošleme ti magic link. Bez hesla.</p>
+        {/* LOGIN KARTA */}
+        <div className="rounded-[2.5rem] border border-black/5 bg-white/80 p-8 shadow-2xl shadow-black/5 backdrop-blur-xl">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-extrabold text-gray-800">Vitaj späť! ✨</h2>
+            <p className="text-gray-500 mt-2 font-medium">Pošleme ti magic link do schránky.</p>
+          </div>
 
-          <label className="mt-5 block text-sm font-semibold text-black">Email</label>
-          <input
-            className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
-            type="email"
-            placeholder="ty@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && emailOk && status !== "sending") sendLink();
-            }}
-          />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-black uppercase tracking-wider text-gray-400 ml-4 mb-2">
+                Tvoj Email
+              </label>
+              <input
+                className="w-full rounded-2xl border border-gray-100 bg-gray-50/50 px-5 py-4 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all text-gray-800 font-medium"
+                type="email"
+                placeholder="napr. tvoj@email.sk"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && emailOk && status !== "sending") sendLink();
+                }}
+              />
+            </div>
 
-          <button
-            onClick={sendLink}
-            disabled={!emailOk || status === "sending"}
-            className="mt-4 w-full rounded-2xl bg-black px-4 py-3 font-semibold text-white shadow-sm disabled:opacity-50 hover:opacity-90"
-          >
-            {status === "sending" ? "Posielam..." : "Poslať magic link"}
-          </button>
+            <button
+              onClick={sendLink}
+              disabled={!emailOk || status === "sending"}
+              className="group relative w-full overflow-hidden rounded-2xl bg-gray-900 px-6 py-4 font-black text-white shadow-xl transition-all hover:bg-black disabled:opacity-30 active:scale-95"
+            >
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                {status === "sending" ? "Posielam..." : "Poslať Magic Link"}
+                {status !== "sending" && <span className="group-hover:translate-x-1 transition-transform">→</span>}
+              </span>
+            </button>
+          </div>
 
+          {/* STAVY PO ODOSLANÍ */}
           {status === "sent" && (
-            <div className="mt-4 rounded-2xl border border-black/10 bg-black/[0.02] px-4 py-3 text-sm text-black">
-              ✅ Pozri email a klikni na link.
-              <div className="mt-1 text-xs text-black/55">Ak nič neprišlo, skontroluj spam.</div>
+            <div className="mt-6 rounded-2xl bg-emerald-50 p-4 border border-emerald-100 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+              <span className="text-xl">📩</span>
+              <div>
+                <p className="text-sm font-bold text-emerald-800">Link je na ceste!</p>
+                <p className="text-xs text-emerald-600 font-medium mt-1">Skontroluj si prosím aj priečinok Spam.</p>
+              </div>
             </div>
           )}
 
           {status === "error" && (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              ❌ {error}
+            <div className="mt-6 rounded-2xl bg-red-50 p-4 border border-red-100 flex items-start gap-3 text-red-700">
+              <span className="text-xl">⚠️</span>
+              <p className="text-sm font-bold leading-tight">{error}</p>
             </div>
           )}
+        </div>
+
+        {/* SPÄŤ NA DOMOVSKÚ STRÁNKU */}
+        <div className="mt-8 text-center">
+            <Link 
+                href="/" 
+                className="text-sm font-bold text-gray-400 hover:text-gray-900 transition-colors"
+            >
+                ← Späť na hlavnú stránku
+            </Link>
         </div>
       </div>
     </main>
