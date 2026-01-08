@@ -1,141 +1,221 @@
 "use client";
 
-import Link from "next/link";
-import AppLogo from "./components/AppLogo";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-// --- NOVÉ ŠTÝLOVÉ POZADIE ---
-function EnhancedSkyMeadowBg() {
+// --- KONFIGURÁCIA SUPABASE (Ak máš ENV premenné, použi process.env) ---
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "TVOJE_SUPABASE_URL";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "TVOJ_ANON_KEY";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// --- KOMPONENT LOGA (Vložený priamo, aby nehádzal chybu importu) ---
+const AppLogo = ({ size = 50, className = "" }: { size?: number; className?: string }) => (
+  <div 
+    className={`bg-gradient-to-br from-yellow-300 to-orange-400 rounded-full flex items-center justify-center shadow-lg ${className}`}
+    style={{ width: size, height: size, fontSize: size * 0.5 }}
+  >
+    🐾
+  </div>
+);
+
+// --- POMOCNÉ FUNKCIE (Vek, Narodeniny) ---
+function getAge(birthday: string) {
+  if (!birthday) return 0;
+  const birthDate = new Date(birthday);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+  return age;
+}
+
+function daysToBirthday(birthday: string) {
+  if (!birthday) return 0;
+  const today = new Date();
+  const bday = new Date(birthday);
+  bday.setFullYear(today.getFullYear());
+  if (bday < today) bday.setFullYear(today.getFullYear() + 1);
+  const diff = bday.getTime() - today.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+// --- KOMPONENT: PROGRES KRUH ---
+function ProgressCircle({ current, total }: { current: number; total: number }) {
+  const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+  const radius = 32;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const color = percentage < 30 ? "#ef4444" : percentage < 75 ? "#eab308" : "#22c55e";
+
   return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
-      {/* Obloha a slnko */}
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-100 to-white" />
-      <div className="absolute right-10 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_90px_rgba(253,224,71,0.55)]" />
+    <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
+      <svg className="w-full h-full transform -rotate-90">
+        <circle cx="50%" cy="50%" r={radius} stroke="#f3f4f6" strokeWidth="8" fill="transparent" />
+        <circle
+          cx="50%" cy="50%" r={radius} stroke={color} strokeWidth="8" fill="transparent"
+          strokeDasharray={circumference}
+          style={{ strokeDashoffset, transition: "all 0.8s ease-out" }}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute flex flex-col items-center">
+        <span className="text-[16px] font-black leading-none">{percentage}%</span>
+        <span className="text-[9px] font-bold text-gray-400 mt-0.5">{current}/{total}</span>
+      </div>
+    </div>
+  );
+}
+
+export default function TodayPage() {
+  const [loading, setLoading] = useState(true);
+  const [pets, setPets] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [showAddPet, setShowAddPet] = useState(false);
+  const [newPet, setNewPet] = useState({ name: "", type: "dog", breed: "", birthday: "" });
+
+  async function loadData() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = "/login"; return; }
+
+      const [p, t] = await Promise.all([
+        supabase.from("pets").select("*").order("created_at", { ascending: false }),
+        supabase.from("care_tasks").select("*").eq("is_archived", false)
+      ]);
+
+      setPets(p.data || []);
+      setTasks(t.data || []);
+    } catch (e) { console.error(e); } finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  async function handleSavePet() {
+    if (!newPet.name || !newPet.birthday) return alert("Prosím vyplň meno a dátum narodenia.");
+    const { error } = await supabase.from("pets").insert([newPet]);
+    if (error) alert(error.message);
+    else {
+      setShowAddPet(false);
+      setNewPet({ name: "", type: "dog", breed: "", birthday: "" });
+      loadData();
+    }
+  }
+
+  if (loading) return (
+    <div className="flex h-screen items-center justify-center bg-gray-50 font-black text-gray-400 uppercase tracking-widest">
+      Načítavam tvoju svorku... 🐾
+    </div>
+  );
+
+  return (
+    <main className="min-h-screen bg-gray-50 pb-24">
       
-      {/* Oblaky */}
-      <svg className="absolute left-[-120px] top-10 h-44 w-[620px] opacity-60 md:opacity-90" viewBox="0 0 520 180">
-        <path d="M150 130c-40 0-72-22-72-49 0-22 22-41 54-46 10-29 45-49 88-49 51 0 92 30 92 66 0 3 0 5-.4 8 39 5 70 26 70 52 0 29-36 52-80 52H150z" fill="white" />
-      </svg>
-
-      {/* Ilustrácia: Búda vpravo dolu */}
-      <svg className="absolute bottom-20 right-[-10px] h-48 w-48 opacity-30 md:opacity-60" viewBox="0 0 200 200">
-        <path d="M40 180V90L100 40L160 90V180H40Z" fill="#8B4513" />
-        <path d="M100 40L30 95V105L100 50L170 105V95L100 40Z" fill="#5D2E0A" />
-        <path d="M80 180V140C80 128.954 88.9543 120 100 120C111.046 120 120 128.954 120 140V180H80Z" fill="#3E1F07" />
-      </svg>
-
-      {/* Ilustrácia: Miska vľavo dolu */}
-      <svg className="absolute bottom-16 left-8 h-28 w-28 opacity-30 md:opacity-60" viewBox="0 0 100 100">
-        <path d="M10 80C10 70 30 65 50 65C70 65 90 70 90 80H10Z" fill="#94A3B8" />
-        <path d="M30 65L40 50H60L70 65H30Z" fill="#64748B" />
-        <rect x="42" y="52" width="16" height="6" rx="3" fill="#F1F5F9" />
-      </svg>
-
-      {/* Lúka */}
-      <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-emerald-200 via-emerald-100 to-transparent" />
-    </div>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  text,
-}: {
-  icon: string;
-  title: string;
-  text: string;
-}) {
-  return (
-    <div className="rounded-[1.8rem] border border-black/5 bg-white/70 p-5 shadow-sm backdrop-blur-md transition-transform hover:scale-[1.02]">
-      <div className="flex items-start gap-4">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white shadow-sm text-2xl">
-          {icon}
+      {/* HEADER */}
+      <div className="mx-auto max-w-4xl px-5 pt-8 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+            <AppLogo size={45} />
+            <h1 className="text-xl font-black tracking-tight">MyPetsDay</h1>
         </div>
-        <div>
-          <div className="text-base font-bold text-black">{title}</div>
-          <div className="mt-1 text-sm leading-relaxed text-black/60">{text}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function HomePage() {
-  return (
-    <main className="relative min-h-screen flex flex-col items-center">
-      <EnhancedSkyMeadowBg />
-
-      <div className="relative mx-auto max-w-4xl px-6 py-12 md:py-20 text-center">
-        
-        {/* VYCENTROVANÉ LOGO A NÁZOV */}
-        <div className="flex flex-col items-center mb-12">
-          <div className="relative group mb-6">
-            <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-            <AppLogo size={160} className="relative drop-shadow-2xl" />
-          </div>
-          
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight text-black mb-4">
-            MyPetsDay
-          </h1>
-          
-          <p className="max-w-xl text-lg md:text-xl font-medium text-black/70 leading-relaxed">
-            Nezabudni na svojho šťastného miláčika. <br className="hidden md:block" />
-            <span className="text-emerald-700 font-bold">Úlohy, zdravie, výdavky</span> – všetko na jednom mieste.
-          </p>
-        </div>
-
-        {/* CTA - AKCIA */}
-        <div className="w-full max-w-sm mx-auto mb-16">
-          <Link
-            href="/login"
-            className="block w-full rounded-full bg-black px-8 py-5 text-center text-lg font-black text-white shadow-2xl shadow-black/20 hover:scale-105 active:scale-95 transition-all"
-          >
-            Vstúpiť do aplikácie 🐾
-          </Link>
-          <div className="mt-4 text-sm font-bold text-black/40">
-            Prihlásenie cez email link • Bez hesla
-          </div>
-        </div>
-
-        {/* FEATURES GRID */}
-        <div className="grid gap-4 md:grid-cols-2 text-left">
-          <FeatureCard
-            icon="✅"
-            title="Týždenný progres"
-            text="Prehľadné štatistiky úloh pre každého tvojho miláčika."
-          />
-          <FeatureCard
-            icon="🔔"
-            title="Zdravotný pas"
-            text="Očkovania a lieky pod kontrolou. Už žiadne zabudnuté termíny."
-          />
-          <FeatureCard
-            icon="📄"
-            title="Záznamy a denník"
-            text="Dôležité udalosti a diagnózy vždy po ruke pre veterinára."
-          />
-          <FeatureCard
-            icon="💸"
-            title="Prehľad nákladov"
-            text="Sleduj výdavky na jedlo a zdravie v jasných číslach."
-          />
-        </div>
-
-        {/* HIGHLIGHT PRE VIAC ZVIERAT */}
-        <div className="mt-8 rounded-[2rem] border border-black/5 bg-black/5 p-6 backdrop-blur-sm">
-          <div className="text-base font-bold text-black flex items-center justify-center gap-2">
-            🐕 Viac zvierat = rovnaký poriadok 🐈
-          </div>
-          <p className="mt-2 text-sm text-black/60 font-medium">
-            Aplikácia je navrhnutá tak, aby zostala prehľadná, aj keď máš doma celú svorku.
-          </p>
-        </div>
-        
+        <button 
+          onClick={() => setShowAddPet(true)}
+          className="bg-black text-white px-5 py-2.5 rounded-2xl text-sm font-bold shadow-lg active:scale-95 transition-all"
+        >
+          + Pridať miláčika
+        </button>
       </div>
 
-      <footer className="mt-auto pb-8 text-xs font-bold text-black/30 tracking-widest uppercase">
-        © 2026 MyPetsDay
-      </footer>
+      <div className="mx-auto max-w-4xl px-5 mt-8">
+        
+        {/* TVOJI MILÁČIKOVIA */}
+        <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 ml-1">Tvoja svorka</h2>
+        <div className="flex gap-4 overflow-x-auto pb-4 snap-x scrollbar-hide">
+          {pets.map(p => {
+            const petTasks = tasks.filter(t => t.pet_id === p.id);
+            const completedCount = 0; // Tu sa neskôr napojí real-time progres
+
+            return (
+              <div key={p.id} className="min-w-[290px] snap-center bg-white rounded-[2.5rem] p-5 shadow-xl shadow-black/[0.02] border border-gray-100 flex items-center gap-4">
+                <ProgressCircle current={completedCount} total={petTasks.length} />
+                <div className="overflow-hidden">
+                  <h3 className="text-xl font-black text-gray-800 truncate">{p.name}</h3>
+                  <p className="text-xs font-bold text-gray-400 truncate uppercase tracking-tighter">{p.breed || p.type}</p>
+                  <div className="mt-2 flex flex-col gap-1">
+                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg w-fit">
+                      🎂 {getAge(p.birthday)} ROKOV
+                    </span>
+                    <span className="text-[10px] font-black text-blue-600">
+                      🎉 NARODENINY ZA {daysToBirthday(p.birthday)} DNÍ
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          
+          {pets.length === 0 && (
+            <div className="w-full bg-white/50 border-2 border-dashed border-gray-200 rounded-[2.5rem] p-10 text-center font-bold text-gray-400">
+              Ešte tu nikoho nemáš. Začni pridaním miláčika! ☝️
+            </div>
+          )}
+        </div>
+
+        {/* ÚLOHY */}
+        <div className="mt-10">
+          <h2 className="text-2xl font-black text-gray-900 mb-6">Dnešný plán 📅</h2>
+          <div className="grid gap-3">
+            {tasks.length > 0 ? (
+              tasks.map(t => (
+                <div key={t.id} className="bg-white rounded-[1.8rem] p-4 flex items-center gap-4 shadow-sm border border-gray-50 hover:border-black/5 transition-all">
+                  <div className="h-6 w-6 rounded-lg border-2 border-gray-200 shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-800 leading-tight">{t.title}</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase mt-0.5">{pets.find(p => p.id === t.pet_id)?.name}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12 bg-gray-100/50 rounded-[2.5rem] border-2 border-dashed border-gray-200">
+                <p className="font-bold text-gray-300 italic">Žiadne úlohy na dnes...</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* FORMULÁR NOVÉHO MILÁČIKA */}
+      {showAddPet && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-4">
+          <div className="w-full max-w-md bg-white rounded-t-[2.5rem] md:rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black">Nový parťák 🐾</h2>
+              <button onClick={() => setShowAddPet(false)} className="h-10 w-10 flex items-center justify-center bg-gray-100 rounded-full font-bold hover:bg-gray-200">✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Meno</label>
+                <input className="w-full bg-gray-50 rounded-2xl p-4 font-bold outline-none focus:ring-2 focus:ring-black/5" value={newPet.name} onChange={e => setNewPet({...newPet, name: e.target.value})} placeholder="Dunčo" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Druh</label>
+                  <select className="w-full bg-gray-50 rounded-2xl p-4 font-bold outline-none" value={newPet.type} onChange={e => setNewPet({...newPet, type: e.target.value})}>
+                    <option value="dog">Pes 🐶</option>
+                    <option value="cat">Mačka 🐱</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Narodeniny</label>
+                  <input type="date" className="w-full bg-gray-50 rounded-2xl p-4 font-bold outline-none" value={newPet.birthday} onChange={e => setNewPet({...newPet, birthday: e.target.value})} />
+                </div>
+              </div>
+              <button onClick={handleSavePet} className="w-full bg-black text-white py-5 rounded-2xl font-black shadow-xl mt-4 active:scale-95 transition-all">
+                Uložiť do svorky
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
