@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import AppLogo from "../components/AppLogo";
 
-/** ---------- TYPES ---------- */
 type Pet = {
   id: string;
   name: string;
@@ -23,7 +23,6 @@ type Task = {
   is_archived?: boolean;
 };
 
-/** ---------- DATE HELPERS ---------- */
 function todayISO() {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -41,8 +40,8 @@ function addDaysISO(baseISO: string, days: number) {
   return `${yyyy}-${mm}-${dd}`;
 }
 function weekday1to7(d = new Date()) {
-  const js = d.getDay(); // 0=Sun..6=Sat
-  return js === 0 ? 7 : js; // 1=Mon..7=Sun
+  const js = d.getDay();
+  return js === 0 ? 7 : js;
 }
 function weekday1to7FromISO(dateISO: string) {
   const [y, m, d] = dateISO.split("-").map(Number);
@@ -60,7 +59,6 @@ function startOfWeekMondayISO(dateISO: string) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-/** ---------- UI HELPERS ---------- */
 function clamp01(x: number) {
   return Math.max(0, Math.min(1, x));
 }
@@ -69,71 +67,32 @@ function lerp(a: number, b: number, t: number) {
 }
 function progressColor(p01: number) {
   const t = clamp01(p01);
-  const hue = lerp(0, 120, t); // 0 red -> 120 green
-  return `hsl(${hue} 85% 42%)`;
-}
-
-/** ---------- LOGO + BACKGROUND ---------- */
-function BoneLogo({ className = "h-10 w-10" }: { className?: string }) {
-  return (
-    <div className={className} aria-label="MyPetsDay logo">
-      <svg viewBox="0 0 64 64" className="h-full w-full drop-shadow-sm">
-        <defs>
-          <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#60A5FA" />
-            <stop offset="1" stopColor="#A7F3D0" />
-          </linearGradient>
-          <linearGradient id="bone3" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#FFF7ED" />
-            <stop offset="1" stopColor="#FFE4C7" />
-          </linearGradient>
-        </defs>
-        <circle cx="32" cy="32" r="30" fill="url(#bg3)" />
-        <circle cx="18" cy="18" r="2" fill="white" opacity="0.9" />
-        <circle cx="48" cy="14" r="1.6" fill="white" opacity="0.9" />
-        <path
-          d="M20 28c-2.8-2.3-7.2-.8-7.9 2.7-.6 3 1.6 5.6 4.4 5.7-.5 3.2 2.1 6.1 5.4 6.1h20.2c3.3 0 5.9-2.9 5.4-6.1 2.8-.1 5-2.7 4.4-5.7-.7-3.5-5.1-5-7.9-2.7-1.3-1.2-3.2-1.9-5.1-1.9H30.2c-1.9 0-3.8.7-5.2 1.9z"
-          fill="url(#bone3)"
-          stroke="#1F2937"
-          strokeOpacity="0.25"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </div>
-  );
+  const hue = lerp(0, 120, t); // red -> green
+  return `hsl(${hue} 80% 40%)`;
 }
 
 function TodayBackground() {
-  // “bližšia krajinka”: obloha + obláčiky + domčeky + tráva + psík
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-100 to-white" />
+      <div className="absolute right-8 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_80px_rgba(253,224,71,0.55)]" />
 
-      {/* slnko */}
-      <div className="absolute right-10 top-10 h-28 w-28 rounded-full bg-yellow-200 shadow-[0_0_90px_rgba(253,224,71,0.65)]" />
-
-      {/* obláčiky */}
-      <svg className="absolute left-[-80px] top-10 h-44 w-[560px] opacity-90" viewBox="0 0 560 180">
+      <svg className="absolute left-[-90px] top-10 h-40 w-[560px] opacity-95" viewBox="0 0 520 180">
         <path
-          d="M170 130c-45 0-82-25-82-56 0-25 25-47 62-52 11-33 51-56 102-56 59 0 107 35 107 78 0 3 0 6-.4 9 46 6 83 31 83 61 0 33-42 60-94 60H170z"
+          d="M150 130c-40 0-72-22-72-49 0-22 22-41 54-46 10-29 45-49 88-49 51 0 92 30 92 66 0 3 0 5-.4 8 39 5 70 26 70 52 0 29-36 52-80 52H150z"
           fill="white"
           opacity="0.95"
         />
       </svg>
-      <svg className="absolute right-[-120px] top-28 h-40 w-[520px] opacity-80" viewBox="0 0 560 180">
+      <svg className="absolute right-[-140px] top-28 h-40 w-[560px] opacity-85" viewBox="0 0 520 180">
         <path
-          d="M170 130c-45 0-82-25-82-56 0-25 25-47 62-52 11-33 51-56 102-56 59 0 107 35 107 78 0 3 0 6-.4 9 46 6 83 31 83 61 0 33-42 60-94 60H170z"
+          d="M150 130c-40 0-72-22-72-49 0-22 22-41 54-46 10-29 45-49 88-49 51 0 92 30 92 66 0 3 0 5-.4 8 39 5 70 26 70 52 0 29-36 52-80 52H150z"
           fill="white"
           opacity="0.95"
         />
       </svg>
 
-      {/* jemné bodky */}
-      <div className="absolute inset-0 opacity-30 [background:radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.08)_1px,transparent_0)] [background-size:18px_18px]" />
-
-      {/* “budovy”/domčeky */}
-      <svg className="absolute bottom-28 left-0 right-0 h-44 w-full opacity-70" viewBox="0 0 1200 220" preserveAspectRatio="none">
+      <svg className="absolute bottom-24 left-0 right-0 h-44 w-full opacity-65" viewBox="0 0 1200 220" preserveAspectRatio="none">
         <path d="M0 170 C 200 140, 380 190, 600 160 C 820 130, 980 180, 1200 150 L1200 220 L0 220 Z" fill="rgba(0,0,0,0.06)" />
         <g fill="rgba(0,0,0,0.10)">
           <rect x="160" y="110" width="70" height="70" rx="10" />
@@ -152,71 +111,117 @@ function TodayBackground() {
         </g>
       </svg>
 
-      {/* tráva */}
       <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-emerald-200 via-emerald-100 to-transparent" />
 
-      {/* psík v rohu */}
-      <div className="absolute bottom-6 left-6 grid h-24 w-24 place-items-center rounded-[2rem] bg-white/70 shadow-sm backdrop-blur">
+      <div className="absolute bottom-6 left-6 grid h-24 w-24 place-items-center rounded-[2rem] bg-white/75 shadow-sm backdrop-blur border border-black/10">
         <span className="text-5xl">🐶</span>
       </div>
     </div>
   );
 }
 
-/** ---------- PROGRESS RING ---------- */
-function ProgressRing({
-  percent,
-  label,
-  sublabel,
-  onClick,
+/** Segmentovaný kruh:
+ *  - segmenty = total
+ *  - vyfarbené segmenty = done
+ *  - ak total je veľké (napr. > 120), prepneme na hladký kruh (performance)
+ */
+function SegmentedRing({
+  total,
+  done,
+  size = 150,
 }: {
-  percent: number; // 0..100
-  label?: string;
-  sublabel?: string;
-  onClick?: () => void;
+  total: number;
+  done: number;
+  size?: number;
 }) {
-  const p01 = clamp01(percent / 100);
-  const r = 56;
-  const c = 2 * Math.PI * r;
-  const dash = c * p01;
-  const gap = c - dash;
+  const p01 = total === 0 ? 0 : done / total;
   const col = progressColor(p01);
 
+  const r = 56;
+  const c = 2 * Math.PI * r;
+  const stroke = 14;
+
+  const showSegments = total > 0 && total <= 120;
+  const pct = Math.round(p01 * 100);
+
+  if (!showSegments) {
+    // fallback smooth ring
+    const dash = c * clamp01(p01);
+    const gap = c - dash;
+
+    return (
+      <div className="relative grid place-items-center">
+        <svg width={size} height={size} viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r={r} stroke="rgba(0,0,0,0.10)" strokeWidth={stroke} fill="none" />
+          <circle
+            cx="70"
+            cy="70"
+            r={r}
+            stroke={col}
+            strokeWidth={stroke}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={`${dash} ${gap}`}
+            transform="rotate(-90 70 70)"
+          />
+        </svg>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div className="text-3xl font-semibold text-black">{pct}%</div>
+        </div>
+      </div>
+    );
+  }
+
+  // segments
+  const segment = c / total;
+  const segLen = segment * 0.78; // nech je medzera
+  const gapLen = segment - segLen;
+
+  // vyfarbenie done segmentov (done kusov)
+  // vykreslíme 2 vrstvy: šedá pre všetky segmenty, a farebná pre done segmenty
+  const dashAll = `${segLen} ${gapLen}`;
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="relative grid place-items-center rounded-[2.5rem] border border-black/10 bg-white/70 p-5 shadow-sm backdrop-blur transition hover:bg-white"
-      title="Klikni pre detail týždňa"
-    >
-      <svg width="140" height="140" viewBox="0 0 140 140">
-        <circle cx="70" cy="70" r={r} stroke="rgba(0,0,0,0.10)" strokeWidth="14" fill="none" />
+    <div className="relative grid place-items-center">
+      <svg width={size} height={size} viewBox="0 0 140 140">
+        {/* all segments (gray) */}
         <circle
           cx="70"
           cy="70"
           r={r}
-          stroke={col}
-          strokeWidth="14"
+          stroke="rgba(0,0,0,0.12)"
+          strokeWidth={stroke}
           fill="none"
           strokeLinecap="round"
-          strokeDasharray={`${dash} ${gap}`}
+          strokeDasharray={dashAll}
           transform="rotate(-90 70 70)"
         />
+
+        {/* done segments: vykreslíme done krát ten istý kruh s posunom */}
+        {Array.from({ length: done }).map((_, i) => (
+          <circle
+            key={i}
+            cx="70"
+            cy="70"
+            r={r}
+            stroke={col}
+            strokeWidth={stroke}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={dashAll}
+            strokeDashoffset={-(segment * i)}
+            transform="rotate(-90 70 70)"
+          />
+        ))}
       </svg>
 
-      {/* PRESNE V STREDE */}
-      <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-        <div>
-          <div className="text-3xl font-semibold">{Math.round(percent)}%</div>
-          <div className="mt-1 text-xs font-medium text-black/55">{label ?? "spokojnosť"}</div>
-          {sublabel && <div className="mt-1 text-[11px] text-black/45">{sublabel}</div>}
-        </div>
+      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="text-3xl font-semibold text-black">{pct}%</div>
       </div>
-    </button>
+    </div>
   );
 }
 
-/** ---------- BREEDS (basic starter list) ---------- */
 const DOG_BREEDS = [
   "Mix / Neviem",
   "Dalmatín",
@@ -232,12 +237,10 @@ const DOG_BREEDS = [
   "Chihuahua",
 ];
 
-/** ---------- MAIN PAGE ---------- */
 export default function TodayPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // pets
   const [pets, setPets] = useState<Pet[]>([]);
   const [showAddPet, setShowAddPet] = useState(false);
   const [petName, setPetName] = useState("");
@@ -245,11 +248,9 @@ export default function TodayPage() {
   const [petBreed, setPetBreed] = useState("Mix / Neviem");
   const [petBirthday, setPetBirthday] = useState("");
 
-  // tasks + completions
   const [tasks, setTasks] = useState<Task[]>([]);
   const [doneByDate, setDoneByDate] = useState<Map<string, Set<string>>>(new Map());
 
-  // add task form
   const [taskPetId, setTaskPetId] = useState<string>("");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskCategory, setTaskCategory] = useState("walk");
@@ -261,28 +262,13 @@ export default function TodayPage() {
   const [savingTask, setSavingTask] = useState(false);
   const [error, setError] = useState<string>("");
 
-  const [manageMode, setManageMode] = useState(false);
-  const [showWeekDetail, setShowWeekDetail] = useState(false);
-
   const today = useMemo(() => todayISO(), []);
   const weekStart = useMemo(() => startOfWeekMondayISO(today), [today]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysISO(weekStart, i)), [weekStart]);
 
-  const upcomingDays = useMemo(() => {
-    const days: string[] = [];
-    for (let i = 1; i <= 7; i++) days.push(addDaysISO(today, i));
-    return days;
-  }, [today]);
-
-  // Range for completions: whole week + next 7 days
   const rangeStart = weekStart;
-  const rangeEnd = useMemo(() => {
-    const weekEnd = addDaysISO(weekStart, 6);
-    const upcomingEnd = upcomingDays.length ? upcomingDays[upcomingDays.length - 1] : today;
-    return weekEnd > upcomingEnd ? weekEnd : upcomingEnd;
-  }, [weekStart, upcomingDays, today]);
+  const rangeEnd = useMemo(() => addDaysISO(weekStart, 6), [weekStart]);
 
-  /** ---------- DATA ---------- */
   async function requireUser() {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) return null;
@@ -294,7 +280,6 @@ export default function TodayPage() {
       .from("pets")
       .select("id,name,type,birthday,breed,created_at")
       .order("created_at", { ascending: false });
-
     if (error) throw error;
     return (data ?? []) as Pet[];
   }
@@ -305,7 +290,6 @@ export default function TodayPage() {
       .select("id,pet_id,title,category,repeat_type,start_date,weekdays,is_archived,created_at")
       .eq("is_archived", false)
       .order("created_at", { ascending: false });
-
     if (error) throw error;
     return (data ?? []) as Task[];
   }
@@ -353,7 +337,7 @@ export default function TodayPage() {
         setDoneByDate(doneMap);
 
         if (p.length > 0) setTaskPetId(p[0].id);
-        setShowAddPet(p.length === 0); // ak nemáš pets, otvor add form automaticky
+        setShowAddPet(p.length === 0);
       } catch (e: any) {
         setError(e.message ?? "Failed to load data");
       } finally {
@@ -367,7 +351,6 @@ export default function TodayPage() {
     };
   }, [rangeStart, rangeEnd]);
 
-  /** ---------- LOGIC ---------- */
   function isDueOnDate(t: Task, dateISO: string) {
     if (t.start_date > dateISO) return false;
 
@@ -382,18 +365,6 @@ export default function TodayPage() {
     return false;
   }
 
-  const tasksToday = useMemo(() => tasks.filter((t) => isDueOnDate(t, today)), [tasks, today]);
-
-  const tasksUpcomingTiny = useMemo(() => {
-    // Malý bodový prehľad: zobraziť len počet na deň (nie veľké karty)
-    return upcomingDays.map((day) => {
-      const due = tasks.filter((t) => isDueOnDate(t, day));
-      const doneSet = doneByDate.get(day) ?? new Set<string>();
-      const done = due.filter((t) => doneSet.has(t.id)).length;
-      return { day, total: due.length, done };
-    });
-  }, [upcomingDays, tasks, doneByDate]);
-
   const petNameById = useMemo(() => {
     const m = new Map<string, string>();
     pets.forEach((p) => m.set(p.id, p.name));
@@ -404,28 +375,22 @@ export default function TodayPage() {
     return doneByDate.get(dateISO)?.has(taskId) ?? false;
   }
 
-  const weekStats = useMemo(() => {
+  const tasksToday = useMemo(() => tasks.filter((t) => isDueOnDate(t, today)), [tasks, today]);
+
+  // ✅ Správny výpočet: total = počet DUE výskytov úloh v týždni, done = počet DONE výskytov
+  const weekCounts = useMemo(() => {
     let total = 0;
     let done = 0;
+
     for (const day of weekDays) {
       const due = tasks.filter((t) => isDueOnDate(t, day));
       total += due.length;
       const doneSet = doneByDate.get(day) ?? new Set<string>();
       done += due.filter((t) => doneSet.has(t.id)).length;
     }
-    const percent = total === 0 ? 0 : (done / total) * 100;
-    return { total, done, percent };
-  }, [weekDays, tasks, doneByDate]);
 
-  /** ---------- ACTIONS ---------- */
-  async function refreshDone() {
-    try {
-      const map = await loadDoneInRange();
-      setDoneByDate(map);
-    } catch (e: any) {
-      setError(e.message ?? "Failed to refresh done state");
-    }
-  }
+    return { total, done };
+  }, [weekDays, tasks, doneByDate]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -590,14 +555,13 @@ export default function TodayPage() {
     setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
   }
 
-  /** ---------- RENDER ---------- */
   if (loading) {
     return (
       <main className="relative min-h-screen">
         <TodayBackground />
-        <div className="relative mx-auto max-w-4xl px-6 py-10">
-          <div className="rounded-[2rem] border border-black/10 bg-white/75 p-8 shadow-sm backdrop-blur">
-            <div className="text-xl font-semibold">Loading…</div>
+        <div className="relative mx-auto max-w-4xl px-5 py-10">
+          <div className="rounded-[2rem] border border-black/10 bg-white/80 p-7 shadow-sm backdrop-blur">
+            <div className="text-xl font-semibold text-black">Loading…</div>
             <p className="mt-2 text-black/60">Pripravujem tvoj deň.</p>
           </div>
         </div>
@@ -609,87 +573,69 @@ export default function TodayPage() {
     <main className="relative min-h-screen">
       <TodayBackground />
 
-      <div className="relative mx-auto max-w-4xl px-6 py-10">
-        {/* TOP HEADER */}
-        <div className="rounded-[2rem] border border-black/10 bg-white/75 p-6 shadow-sm backdrop-blur">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="relative mx-auto max-w-4xl px-5 py-10">
+        {/* HEADER */}
+        <div className="rounded-[2rem] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <BoneLogo className="h-11 w-11" />
+              <AppLogo size={46} />
               <div>
-                <div className="text-2xl font-semibold tracking-tight">MyPetsDay</div>
-                <div className="text-sm text-black/60">
-                  Prihlásený ako <span className="font-medium">{email}</span>
+                <div className="text-xl md:text-2xl font-semibold tracking-tight text-black">MyPetsDay</div>
+                <div className="text-xs md:text-sm text-black/60">
+                  {email ? <>Prihlásený: <span className="font-medium text-black">{email}</span></> : null}
                 </div>
-                <div className="text-xs text-black/45">Dnes: {today}</div>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setManageMode((v) => !v)}
-                className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-black/5"
-              >
-                {manageMode ? "Manage: ON" : "Manage"}
-              </button>
-              <button
-                onClick={() => setShowWeekDetail(true)}
-                className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-black/5"
-              >
-                Týždeň detail
-              </button>
-              <button
-                onClick={refreshDone}
-                className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-black/5"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={signOut}
-                className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-              >
-                Sign out
-              </button>
-            </div>
+            <button
+              onClick={signOut}
+              className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+            >
+              Odhlásiť
+            </button>
           </div>
 
-          {error && <p className="mt-4 text-sm text-red-700">❌ {error}</p>}
+          {error && <p className="mt-3 text-sm text-red-700">❌ {error}</p>}
         </div>
 
-        {/* RING + STATS */}
-        <div className="mt-6 grid gap-4 md:grid-cols-[160px_1fr]">
-          <ProgressRing
-            percent={weekStats.percent}
-            label="týždeň"
-            sublabel={`${weekStats.done}/${weekStats.total} úloh`}
-            onClick={() => setShowWeekDetail(true)}
-          />
+        {/* RING AREA (bez zbytočných popisov priamo v kruhu) */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur">
+          <div className="grid gap-5 md:grid-cols-[180px_1fr] md:items-center">
+            <div className="flex justify-center md:justify-start">
+              <SegmentedRing total={weekCounts.total} done={weekCounts.done} size={170} />
+            </div>
 
-          <div className="rounded-[2rem] border border-black/10 bg-white/75 p-6 shadow-sm backdrop-blur">
-            <div className="text-sm text-black/60">Kruh spokojnosti</div>
-            <div className="mt-1 text-2xl font-semibold">Ako sa ti darí tento týždeň?</div>
-            <div className="mt-3 text-sm text-black/65">
-              Percento je presne z počtu splnených úloh v týždni. Čím viac úloh si nastavíš, tým jemnejšie sa progres delí.
+            <div className="text-black">
+              <div className="text-lg md:text-xl font-semibold">
+                Tvoje zvieratko tento týždeň splnilo
+              </div>
+              <div className="mt-1 text-2xl md:text-3xl font-semibold">
+                {weekCounts.done} <span className="text-black/60 text-base md:text-lg font-medium">z</span> {weekCounts.total}
+              </div>
+              <div className="mt-2 text-sm text-black/65">
+                (Počítajú sa výskyty úloh v jednotlivých dňoch — presne podľa toho, koľko úloh si nastavíš.)
+              </div>
             </div>
           </div>
         </div>
 
-        {/* PETS - compact, form only when needed */}
-        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/75 p-6 shadow-sm backdrop-blur">
+        {/* PETS (nezavadzia) */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <div className="text-lg font-semibold">🐾 Miláčikovia</div>
+            <div className="text-lg font-semibold text-black">🐾 Miláčikovia</div>
             <button
               onClick={() => setShowAddPet((v) => !v)}
-              className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5"
+              className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 text-black"
             >
               {showAddPet ? "Zavrieť" : "+ Add new pet"}
             </button>
           </div>
 
-          {pets.length > 0 && !showAddPet && (
+          {!showAddPet && pets.length > 0 && (
             <div className="mt-4 grid gap-2 md:grid-cols-2">
               {pets.slice(0, 2).map((p) => (
                 <div key={p.id} className="rounded-2xl border border-black/10 bg-white px-4 py-3">
-                  <div className="font-semibold">
+                  <div className="font-semibold text-black">
                     {p.type === "dog" ? "🐶" : p.type === "cat" ? "🐱" : "🐾"} {p.name}
                   </div>
                   <div className="text-sm text-black/60">
@@ -697,11 +643,6 @@ export default function TodayPage() {
                   </div>
                 </div>
               ))}
-              {pets.length > 2 && (
-                <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black/60">
-                  + ďalší: {pets.length - 2}
-                </div>
-              )}
             </div>
           )}
 
@@ -709,13 +650,14 @@ export default function TodayPage() {
             <div className="mt-4">
               <div className="grid gap-3 md:grid-cols-3">
                 <input
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
                   placeholder="Meno (napr. Bella)"
                   value={petName}
                   onChange={(e) => setPetName(e.target.value)}
                 />
+
                 <select
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
                   value={petType}
                   onChange={(e) => setPetType(e.target.value)}
                 >
@@ -723,8 +665,9 @@ export default function TodayPage() {
                   <option value="cat">Cat 🐱</option>
                   <option value="other">Other 🐾</option>
                 </select>
+
                 <input
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
                   type="date"
                   value={petBirthday}
                   onChange={(e) => setPetBirthday(e.target.value)}
@@ -733,9 +676,9 @@ export default function TodayPage() {
 
               {petType === "dog" && (
                 <div className="mt-3">
-                  <label className="block text-sm font-medium">Plemeno</label>
+                  <label className="block text-sm font-semibold text-black">Plemeno</label>
                   <select
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
                     value={petBreed}
                     onChange={(e) => setPetBreed(e.target.value)}
                   >
@@ -760,12 +703,12 @@ export default function TodayPage() {
         </div>
 
         {/* ADD TASK */}
-        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/75 p-6 shadow-sm backdrop-blur">
-          <div className="text-lg font-semibold">➕ Pridať úlohu</div>
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur">
+          <div className="text-lg font-semibold text-black">➕ Pridať úlohu</div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <select
-              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
               value={taskPetId}
               onChange={(e) => setTaskPetId(e.target.value)}
               disabled={pets.length === 0}
@@ -782,14 +725,14 @@ export default function TodayPage() {
             </select>
 
             <input
-              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 md:col-span-2"
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black md:col-span-2"
               placeholder="Názov (napr. Ranné venčenie)"
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
             />
 
             <select
-              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
               value={taskCategory}
               onChange={(e) => setTaskCategory(e.target.value)}
             >
@@ -803,7 +746,7 @@ export default function TodayPage() {
 
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <select
-              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
               value={repeatType}
               onChange={(e) => setRepeatType(e.target.value as any)}
             >
@@ -813,13 +756,13 @@ export default function TodayPage() {
             </select>
 
             <input
-              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
 
-            <div className="text-sm text-black/55 flex items-center">
+            <div className="text-sm text-black/60 flex items-center">
               {repeatType === "weekly" ? "Vyber dni nižšie" : " "}
             </div>
           </div>
@@ -827,13 +770,7 @@ export default function TodayPage() {
           {repeatType === "weekly" && (
             <div className="mt-3 flex flex-wrap gap-2">
               {[
-                [1, "Mon"],
-                [2, "Tue"],
-                [3, "Wed"],
-                [4, "Thu"],
-                [5, "Fri"],
-                [6, "Sat"],
-                [7, "Sun"],
+                [1, "Mon"], [2, "Tue"], [3, "Wed"], [4, "Thu"], [5, "Fri"], [6, "Sat"], [7, "Sun"],
               ].map(([n, label]) => (
                 <button
                   key={n}
@@ -842,7 +779,7 @@ export default function TodayPage() {
                   className={`rounded-2xl border px-3 py-2 text-sm font-semibold ${
                     weekdays.includes(n as number)
                       ? "border-black bg-black text-white"
-                      : "border-black/10 bg-white hover:bg-black/5"
+                      : "border-black/10 bg-white hover:bg-black/5 text-black"
                   }`}
                 >
                   {label}
@@ -860,19 +797,19 @@ export default function TodayPage() {
           </button>
         </div>
 
-        {/* TODAY - PRIORITY BIG */}
-        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur">
+        {/* TODAY (priority big) */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <div className="text-xl font-semibold">✅ Dnešné úlohy</div>
+            <div className="text-xl font-semibold text-black">✅ Dnešné úlohy</div>
             <div className="text-sm text-black/60">
-              Hotovo: {tasksToday.filter((t) => isDone(t.id, today)).length}/{tasksToday.length}
+              {tasksToday.filter((t) => isDone(t.id, today)).length}/{tasksToday.length}
             </div>
           </div>
 
           <div className="mt-4 space-y-2">
             {tasksToday.length === 0 ? (
-              <div className="rounded-2xl bg-black/[0.03] p-4 text-black/65">
-                Dnes nič nemáš. Pridaj úlohu a kruh spokojnosti ožije 🟢
+              <div className="rounded-2xl bg-black/[0.03] p-4 text-black/70">
+                Dnes nič nemáš. Pridaj úlohu a ideš ďalej 🟢
               </div>
             ) : (
               tasksToday.map((t) => {
@@ -881,9 +818,9 @@ export default function TodayPage() {
                   <div key={t.id} className="rounded-2xl border border-black/10 bg-white px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold">
-                          {done ? "✅" : "⬜"} {t.title}{" "}
-                          <span className="text-sm text-black/50">
+                        <div className="font-semibold text-black">
+                          {done ? "✅" : "⬜"} {t.title}
+                          <span className="ml-2 text-sm text-black/55">
                             • {petNameById.get(t.pet_id) ?? "Pet"} • {t.category}
                           </span>
                         </div>
@@ -895,38 +832,34 @@ export default function TodayPage() {
                             : `Jednorazovo: ${t.start_date}`}
                         </div>
 
-                        {/* Delete riadok len v Manage */}
-                        {manageMode && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                const ok = confirm(`Archivovať úlohu "${t.title}"? História splnení zostane.`);
-                                if (ok) archiveTask(t.id);
-                              }}
-                              className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
-                            >
-                              🗑️ Archivovať (Delete)
-                            </button>
-                            <span className="text-xs text-black/45">Nezmaže históriu</span>
-                          </div>
-                        )}
+                        {/* Namiesto chaosu: malé tlačidlo Archive (nezmaže históriu) */}
+                        <button
+                          onClick={() => {
+                            const ok = confirm(`Archivovať úlohu "${t.title}"? História splnení zostane.`);
+                            if (ok) archiveTask(t.id);
+                          }}
+                          className="mt-2 inline-flex items-center rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-black/5"
+                          title="Skryje úlohu, ale nezmaže históriu splnení"
+                        >
+                          Archivovať
+                        </button>
                       </div>
 
                       <div className="flex gap-2">
                         {done ? (
                           <button
                             onClick={() => unmarkDoneOn(t.id, today)}
-                            className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5"
+                            className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 text-black"
                             title="Zruší splnenie len pre dnešok"
                           >
-                            Undo (today)
+                            Undo
                           </button>
                         ) : (
                           <button
                             onClick={() => markDoneOn(t.id, today)}
                             className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
                           >
-                            Mark done
+                            Hotovo
                           </button>
                         )}
                       </div>
@@ -936,89 +869,12 @@ export default function TodayPage() {
               })
             )}
           </div>
-
-          {manageMode && (
-            <div className="mt-4 rounded-2xl border border-black/10 bg-black/[0.02] p-4 text-sm text-black/60">
-              <div className="font-semibold">Manage mode</div>
-              <div className="mt-1">
-                Delete = archivácia úlohy. Úloha zmizne z Today, ale história splnení zostáva.
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* UPCOMING - SMALL BULLETS */}
-        <div className="mt-4 rounded-[2rem] border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur">
-          <div className="text-lg font-semibold">📌 Najbližších 7 dní</div>
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            {tasksUpcomingTiny.map((d) => (
-              <div key={d.day} className="flex items-center justify-between rounded-2xl bg-black/[0.03] px-4 py-3">
-                <div className="text-sm font-medium">{d.day}</div>
-                <div className="text-sm text-black/60">
-                  {d.total === 0 ? "—" : `${d.done}/${d.total}`}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 text-xs text-black/45">
-            (Podrobné karty pre každý deň môžeme doplniť neskôr po kliknutí.)
-          </div>
+        <div className="mt-8 text-center text-xs text-black/50">
+          MyPetsDay 🦴 • Tvoje úlohy, tvoj pokoj.
         </div>
       </div>
-
-      {/* WEEK DETAIL MODAL */}
-      {showWeekDetail && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4">
-          <div className="w-full max-w-2xl rounded-[2rem] border border-black/10 bg-white p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-2xl font-semibold">📊 Detail týždňa</div>
-                <div className="mt-1 text-sm text-black/60">
-                  {weekStart} – {addDaysISO(weekStart, 6)}
-                </div>
-              </div>
-              <button
-                onClick={() => setShowWeekDetail(false)}
-                className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-semibold hover:bg-black/5"
-              >
-                Zavrieť
-              </button>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2 md:items-center">
-              <div className="flex justify-center">
-                <ProgressRing percent={weekStats.percent} label="týždeň" sublabel={`${weekStats.done}/${weekStats.total}`} />
-              </div>
-              <div className="rounded-2xl bg-black/[0.03] p-4">
-                <div className="text-sm text-black/55">Súhrn</div>
-                <div className="mt-1 text-xl font-semibold">
-                  {weekStats.done}/{weekStats.total} hotovo
-                </div>
-                <div className="mt-2 text-sm text-black/60">
-                  Percento sa delí presne podľa počtu úloh, ktoré sú “due” v týždni.
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-2">
-              {weekDays.map((day) => {
-                const due = tasks.filter((t) => isDueOnDate(t, day));
-                const doneSet = doneByDate.get(day) ?? new Set<string>();
-                const doneCount = due.filter((t) => doneSet.has(t.id)).length;
-
-                return (
-                  <div key={day} className="flex items-center justify-between rounded-2xl border border-black/10 px-4 py-3">
-                    <div className="font-medium">{day}</div>
-                    <div className="text-sm text-black/60">
-                      {doneCount}/{due.length} hotovo
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
