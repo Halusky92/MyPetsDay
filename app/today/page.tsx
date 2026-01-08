@@ -18,9 +18,7 @@ type Task = {
   repeat_type: "none" | "daily" | "weekly";
   start_date: string; // YYYY-MM-DD
   weekdays: number[] | null; // 1..7
-  // pripravene do buducna (volitelne v DB)
-  notify?: boolean;
-  notify_minutes_before?: number | null;
+  is_archived?: boolean;
 };
 
 function todayISO() {
@@ -30,13 +28,6 @@ function todayISO() {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
-
-function weekday1to7(d = new Date()) {
-  // JS: 0=Sun..6=Sat -> convert to 1=Mon..7=Sun
-  const js = d.getDay();
-  return js === 0 ? 7 : js; // Sun -> 7, Mon ->1 ...
-}
-
 function addDaysISO(baseISO: string, days: number) {
   const [y, m, d] = baseISO.split("-").map(Number);
   const base = new Date(y, m - 1, d);
@@ -46,21 +37,108 @@ function addDaysISO(baseISO: string, days: number) {
   const dd = String(base.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
-
+function weekday1to7(d = new Date()) {
+  const js = d.getDay();
+  return js === 0 ? 7 : js; // Sun->7, Mon->1...
+}
 function weekday1to7FromISO(dateISO: string) {
   const [y, m, d] = dateISO.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
   return weekday1to7(dt);
 }
+function startOfWeekMondayISO(dateISO: string) {
+  // Monday as 1.. Sunday 7
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const w = weekday1to7(dt);
+  const diff = w - 1; // days since Monday
+  dt.setDate(dt.getDate() - diff);
+  const yyyy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
-/**
- * Pripraveny hook na notifikacie.
- * Zatial nic nerobi – neskor sem pridame planovanie / request permission / push.
- */
-function useNotifications(_tasks: Task[], _pets: Pet[]) {
-  useEffect(() => {
-    // TODO: notifications in future
-  }, [_tasks, _pets]);
+function SkyBackground() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-100 to-white" />
+      <div className="absolute right-10 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_70px_rgba(253,224,71,0.6)]" />
+      <svg className="absolute left-8 top-20 h-24 w-56 opacity-90" viewBox="0 0 220 80">
+        <path
+          d="M55 60c-16 0-29-9-29-20 0-9 9-17 22-19 4-12 18-20 35-20 20 0 36 12 36 27 0 1 0 2-.2 3 15 2 27 11 27 22 0 12-14 22-31 22H55z"
+          fill="white"
+          opacity="0.95"
+        />
+      </svg>
+      <svg className="absolute right-10 top-40 h-20 w-44 opacity-80" viewBox="0 0 220 80">
+        <path
+          d="M55 60c-16 0-29-9-29-20 0-9 9-17 22-19 4-12 18-20 35-20 20 0 36 12 36 27 0 1 0 2-.2 3 15 2 27 11 27 22 0 12-14 22-31 22H55z"
+          fill="white"
+          opacity="0.95"
+        />
+      </svg>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] [background-size:18px_18px] opacity-35" />
+      <div className="absolute bottom-0 left-0 right-0 h-44 bg-gradient-to-t from-emerald-100 to-transparent" />
+    </div>
+  );
+}
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+function clamp01(x: number) {
+  return Math.max(0, Math.min(1, x));
+}
+function progressColor(pct01: number) {
+  // red -> yellow -> green in HSL-ish: use hue 0..120
+  const t = clamp01(pct01);
+  const hue = lerp(0, 120, t); // 0 red, 120 green
+  return `hsl(${hue} 80% 45%)`;
+}
+
+function ProgressRing({
+  percent,
+  onClick,
+}: {
+  percent: number; // 0..100
+  onClick?: () => void;
+}) {
+  const p01 = clamp01(percent / 100);
+  const r = 56;
+  const c = 2 * Math.PI * r;
+  const dash = c * p01;
+  const gap = c - dash;
+  const col = progressColor(p01);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative grid place-items-center rounded-[2.5rem] border border-black/10 bg-white/70 p-5 shadow-sm backdrop-blur transition hover:bg-white"
+      title="Klikni pre detail týždňa"
+    >
+      <div className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-r from-white/40 to-white/0 opacity-0 blur-xl transition group-hover:opacity-100" />
+      <svg width="140" height="140" viewBox="0 0 140 140" className="relative">
+        <circle cx="70" cy="70" r={r} stroke="rgba(0,0,0,0.08)" strokeWidth="14" fill="none" />
+        <circle
+          cx="70"
+          cy="70"
+          r={r}
+          stroke={col}
+          strokeWidth="14"
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${gap}`}
+          transform="rotate(-90 70 70)"
+        />
+      </svg>
+      <div className="pointer-events-none absolute text-center">
+        <div className="text-3xl font-semibold">{Math.round(percent)}%</div>
+        <div className="mt-1 text-xs font-medium text-black/55">týždeň hotovo</div>
+      </div>
+    </button>
+  );
 }
 
 export default function TodayPage() {
@@ -89,8 +167,13 @@ export default function TodayPage() {
   const [savingTask, setSavingTask] = useState(false);
   const [error, setError] = useState<string>("");
 
+  // UI extras
+  const [manageMode, setManageMode] = useState(false);
+  const [showWeekDetail, setShowWeekDetail] = useState(false);
+
   const today = useMemo(() => todayISO(), []);
-  const todayW = useMemo(() => weekday1to7(new Date()), []);
+  const weekStart = useMemo(() => startOfWeekMondayISO(today), [today]);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysISO(weekStart, i)), [weekStart]);
 
   const upcomingDays = useMemo(() => {
     const days: string[] = [];
@@ -98,26 +181,20 @@ export default function TodayPage() {
     return days;
   }, [today]);
 
-  const rangeStart = today;
-  const rangeEnd = upcomingDays.length ? upcomingDays[upcomingDays.length - 1] : today;
+  // for completions range (cover week + upcoming)
+  const rangeStart = weekStart;
+  const rangeEnd = useMemo(() => {
+    const weekEnd = addDaysISO(weekStart, 6);
+    const upcomingEnd = upcomingDays.length ? upcomingDays[upcomingDays.length - 1] : today;
+    return weekEnd > upcomingEnd ? weekEnd : upcomingEnd;
+  }, [weekStart, upcomingDays, today]);
 
   async function requireUser() {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) return null;
     return data.user;
   }
-async function ensureNotificationSettings(user: any) {
-  if (!user.email) return;
 
-  await supabase.from("notification_settings").upsert({
-    user_id: user.id,
-    email: user.email,
-    email_enabled: true,
-    notify_time: "07:00:00",
-    timezone: "Europe/Bratislava",
-    days_ahead: 0,
-  });
-}
   async function loadPets() {
     const { data, error } = await supabase
       .from("pets")
@@ -131,7 +208,8 @@ async function ensureNotificationSettings(user: any) {
   async function loadTasks() {
     const { data, error } = await supabase
       .from("care_tasks")
-      .select("id,pet_id,title,category,repeat_type,start_date,weekdays,created_at")
+      .select("id,pet_id,title,category,repeat_type,start_date,weekdays,is_archived,created_at")
+      .eq("is_archived", false)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -157,22 +235,6 @@ async function ensureNotificationSettings(user: any) {
     return map;
   }
 
-  /**
-   * ✅ Jeden centralny refresh – pouzi vsade.
-   */
-  async function refreshAll(opts?: { keepSelectedPetId?: string }) {
-    const [p, t, doneMap] = await Promise.all([loadPets(), loadTasks(), loadDoneInRange()]);
-    setPets(p);
-    setTasks(t);
-    setDoneByDate(doneMap);
-
-    setTaskPetId((prev) => {
-      const desired = opts?.keepSelectedPetId ?? prev;
-      if (desired && p.some((x) => x.id === desired)) return desired;
-      return p.length ? p[0].id : "";
-    });
-  }
-
   useEffect(() => {
     let mounted = true;
 
@@ -189,11 +251,18 @@ async function ensureNotificationSettings(user: any) {
       setEmail(user.email ?? null);
 
       try {
-        await refreshAll();
+        const [p, t, doneMap] = await Promise.all([loadPets(), loadTasks(), loadDoneInRange()]);
+        if (!mounted) return;
+
+        setPets(p);
+        setTasks(t);
+        setDoneByDate(doneMap);
+
+        if (p.length > 0) setTaskPetId(p[0].id);
       } catch (e: any) {
         setError(e.message ?? "Failed to load data");
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     }
 
@@ -201,7 +270,6 @@ async function ensureNotificationSettings(user: any) {
     return () => {
       mounted = false;
     };
-    // rangeStart/rangeEnd nechavame v zavislostiach ako predtym
   }, [rangeStart, rangeEnd]);
 
   function isDueOnDate(t: Task, dateISO: string) {
@@ -218,13 +286,10 @@ async function ensureNotificationSettings(user: any) {
     return false;
   }
 
-  const tasksToday = useMemo(() => tasks.filter((t) => isDueOnDate(t, today)), [tasks, today, todayW]);
-
+  const tasksToday = useMemo(() => tasks.filter((t) => isDueOnDate(t, today)), [tasks, today]);
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const day of upcomingDays) {
-      map.set(day, tasks.filter((t) => isDueOnDate(t, day)));
-    }
+    for (const day of upcomingDays) map.set(day, tasks.filter((t) => isDueOnDate(t, day)));
     return map;
   }, [tasks, upcomingDays]);
 
@@ -239,11 +304,11 @@ async function ensureNotificationSettings(user: any) {
   }
 
   async function refreshDone() {
-    // teraz refreshujeme vsetko – aby to bolo konzistentne
     try {
-      await refreshAll();
+      const map = await loadDoneInRange();
+      setDoneByDate(map);
     } catch (e: any) {
-      setError(e.message ?? "Failed to refresh");
+      setError(e.message ?? "Failed to refresh done state");
     }
   }
 
@@ -280,7 +345,9 @@ async function ensureNotificationSettings(user: any) {
     setSavingPet(false);
 
     try {
-      await refreshAll();
+      const p = await loadPets();
+      setPets(p);
+      if (p.length > 0) setTaskPetId(p[0].id);
     } catch (e: any) {
       setError(e.message ?? "Failed to reload pets");
     }
@@ -297,19 +364,15 @@ async function ensureNotificationSettings(user: any) {
     }
 
     const payload: any = {
-  user_id: user.id,
-  pet_id: taskPetId,
-  title: taskTitle.trim(),
-  category: taskCategory,
-  repeat_type: repeatType,
-  start_date: startDate,
-  weekdays: repeatType === "weekly" ? weekdays : null,
-
-  // 🔔 NOTIFICATIONS – BOD 2
-  task_time: "09:00",
-  notify: true,
-  notify_minutes_before: 30,
-};
+      user_id: user.id,
+      pet_id: taskPetId,
+      title: taskTitle.trim(),
+      category: taskCategory,
+      repeat_type: repeatType,
+      start_date: startDate,
+      weekdays: repeatType === "weekly" ? weekdays : null,
+      is_archived: false,
+    };
 
     const { error } = await supabase.from("care_tasks").insert(payload);
 
@@ -323,79 +386,10 @@ async function ensureNotificationSettings(user: any) {
     setSavingTask(false);
 
     try {
-      await refreshAll({ keepSelectedPetId: taskPetId });
+      const t = await loadTasks();
+      setTasks(t);
     } catch (e: any) {
       setError(e.message ?? "Failed to reload tasks");
-    }
-  }
-
-  // ✅ delete pet with confirmation + safe cascade (tasks + completions)
-  async function deletePet(pet: Pet) {
-    const ok = window.confirm(`Naozaj chceš odstrániť "${pet.name}"?`);
-    if (!ok) return;
-
-    setError("");
-
-    const user = await requireUser();
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
-
-    try {
-      // 1) get tasks for this pet (so we can delete completions by task_id)
-      const { data: petTasks, error: tasksErr } = await supabase
-        .from("care_tasks")
-        .select("id")
-        .eq("pet_id", pet.id);
-
-      if (tasksErr) throw tasksErr;
-
-      const taskIds = (petTasks ?? []).map((x: any) => x.id);
-
-      // 2) delete completions for these tasks
-      if (taskIds.length > 0) {
-        const { error: delCompErr } = await supabase.from("task_completions").delete().in("task_id", taskIds);
-        if (delCompErr) throw delCompErr;
-      }
-
-      // 3) delete tasks for this pet
-      const { error: delTasksErr } = await supabase.from("care_tasks").delete().eq("pet_id", pet.id);
-      if (delTasksErr) throw delTasksErr;
-
-      // 4) delete the pet
-      const { error: delPetErr } = await supabase.from("pets").delete().eq("id", pet.id);
-      if (delPetErr) throw delPetErr;
-
-      await refreshAll();
-    } catch (e: any) {
-      setError(e.message ?? "Failed to delete pet");
-    }
-  }
-
-  // ✅ delete task + its completions
-  async function deleteTask(task: Task) {
-    const ok = window.confirm(`Naozaj chceš odstrániť task "${task.title}"?`);
-    if (!ok) return;
-
-    setError("");
-
-    const user = await requireUser();
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
-
-    try {
-      const { error: delCompErr } = await supabase.from("task_completions").delete().eq("task_id", task.id);
-      if (delCompErr) throw delCompErr;
-
-      const { error: delTaskErr } = await supabase.from("care_tasks").delete().eq("id", task.id);
-      if (delTaskErr) throw delTaskErr;
-
-      await refreshAll({ keepSelectedPetId: taskPetId });
-    } catch (e: any) {
-      setError(e.message ?? "Failed to delete task");
     }
   }
 
@@ -413,16 +407,12 @@ async function ensureNotificationSettings(user: any) {
       completed_on: dateISO,
     });
 
-    // unique constraint: already done -> ignore
     if (error) {
       const msg = String(error.message).toLowerCase();
-      if (!msg.includes("duplicate") && !msg.includes("unique")) {
-        setError(error.message);
-      }
+      if (!msg.includes("duplicate") && !msg.includes("unique")) setError(error.message);
       return;
     }
 
-    // update local state
     setDoneByDate((prev) => {
       const next = new Map(prev);
       if (!next.has(dateISO)) next.set(dateISO, new Set());
@@ -461,372 +451,499 @@ async function ensureNotificationSettings(user: any) {
     });
   }
 
+  async function archiveTask(taskId: string) {
+    setError("");
+    const user = await requireUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    // Soft delete: nech história ostane
+    const { error } = await supabase.from("care_tasks").update({ is_archived: true }).eq("id", taskId);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    // odstráň z UI
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  }
+
   function toggleWeekday(d: number) {
     setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
   }
 
-  // ✅ priprava na notifikacie
-  useNotifications(tasks, pets);
+  const weekStats = useMemo(() => {
+    let total = 0;
+    let done = 0;
+
+    for (const day of weekDays) {
+      const due = tasks.filter((t) => isDueOnDate(t, day));
+      total += due.length;
+      const doneSet = doneByDate.get(day) ?? new Set<string>();
+      // count done instances for due tasks only
+      done += due.filter((t) => doneSet.has(t.id)).length;
+    }
+
+    const percent = total === 0 ? 0 : (done / total) * 100;
+    return { total, done, percent };
+  }, [weekDays, tasks, doneByDate]);
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8">
-        <div className="max-w-lg w-full rounded-2xl border border-black/10 bg-white p-8 shadow-sm">
-          <div className="text-xl font-semibold">Loading…</div>
-          <p className="mt-2 text-black/60">Checking your session.</p>
+      <main className="relative min-h-screen">
+        <SkyBackground />
+        <div className="relative mx-auto max-w-4xl px-6 py-10">
+          <div className="rounded-3xl border border-black/10 bg-white/80 p-8 shadow-sm backdrop-blur">
+            <div className="text-xl font-semibold">Loading…</div>
+            <p className="mt-2 text-black/60">Kontrolujem session.</p>
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
-      <div className="max-w-3xl w-full rounded-2xl border border-black/10 bg-white p-8 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
+    <main className="relative min-h-screen">
+      <SkyBackground />
+
+      <div className="relative mx-auto max-w-4xl px-6 py-10">
+        {/* Header */}
+        <div className="flex flex-col gap-4 rounded-[2.5rem] border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-3xl font-semibold">📅 Today</div>
-            <p className="mt-2 text-black/60">
-              Signed in as <span className="font-medium">{email}</span>
+            <div className="text-3xl font-semibold tracking-tight">🐾 Today</div>
+            <p className="mt-1 text-sm text-black/60">
+              Prihlásený ako <span className="font-medium">{email}</span>
             </p>
-            <p className="mt-1 text-sm text-black/50">Date: {today}</p>
+            <p className="mt-1 text-xs text-black/45">Dátum: {today}</p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setManageMode((v) => !v)}
+              className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-black/5"
+            >
+              {manageMode ? "Hotovo (Manage)" : "Manage"}
+            </button>
+            <button
+              onClick={() => setShowWeekDetail(true)}
+              className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-black/5"
+            >
+              Detail týždňa
+            </button>
             <button
               onClick={refreshDone}
-              className="rounded-xl border border-black/10 px-4 py-2 font-medium hover:bg-black/5"
+              className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-black/5"
             >
               Refresh
             </button>
             <button
               onClick={signOut}
-              className="rounded-xl bg-black px-4 py-2 font-medium text-white hover:opacity-90"
+              className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
               Sign out
             </button>
           </div>
         </div>
 
-        {error && <p className="mt-4 text-sm text-red-600">❌ {error}</p>}
+        {error && <p className="mt-4 text-sm text-red-700">❌ {error}</p>}
 
-        <hr className="my-6 border-black/10" />
-
-        {/* PETS */}
-        <div className="text-xl font-semibold">🐾 Your pets</div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <input
-            className="rounded-xl border border-black/10 px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
-            placeholder="Pet name (e.g., Bella)"
-            value={petName}
-            onChange={(e) => setPetName(e.target.value)}
-          />
-
-          <select
-            className="rounded-xl border border-black/10 px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
-            value={petType}
-            onChange={(e) => setPetType(e.target.value)}
-          >
-            <option value="dog">Dog 🐶</option>
-            <option value="cat">Cat 🐱</option>
-            <option value="other">Other 🐾</option>
-          </select>
-
-          <input
-            className="rounded-xl border border-black/10 px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
-            type="date"
-            value={petBirthday}
-            onChange={(e) => setPetBirthday(e.target.value)}
-          />
-        </div>
-
-        <button
-          onClick={addPet}
-          disabled={!petName.trim() || savingPet}
-          className="mt-3 rounded-xl bg-black px-4 py-3 font-medium text-white disabled:opacity-50"
-        >
-          {savingPet ? "Saving..." : "Add pet"}
-        </button>
-
-        <div className="mt-6 space-y-2">
-          {pets.length === 0 ? (
-            <p className="text-black/60">No pets yet. Add your first dog 🐶</p>
-          ) : (
-            pets.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between rounded-xl border border-black/10 px-4 py-3"
-              >
-                <div>
-                  <div className="font-semibold">
-                    {p.type === "dog" ? "🐶" : p.type === "cat" ? "🐱" : "🐾"} {p.name}
-                  </div>
-                  <div className="text-sm text-black/60">
-                    {p.birthday ? `Birthday: ${p.birthday}` : "Birthday: —"}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-sm text-black/50">{p.type}</div>
-
-                  <button
-                    type="button"
-                    onClick={() => deletePet(p)}
-                    className="rounded-xl border border-red-600/20 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
-                  >
-                    Remove
-                  </button>
+        {/* Weekly ring + quick stats */}
+        <div className="mt-6 grid gap-4 md:grid-cols-[160px_1fr] md:items-stretch">
+          <ProgressRing percent={weekStats.percent} onClick={() => setShowWeekDetail(true)} />
+          <div className="rounded-[2.5rem] border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm text-black/55">Týždeň (Po–Ne)</div>
+                <div className="mt-1 text-2xl font-semibold">
+                  {weekStats.done}/{weekStats.total} hotovo
                 </div>
               </div>
-            ))
-          )}
+              <div className="grid h-14 w-14 place-items-center rounded-3xl bg-gradient-to-b from-sky-200 to-white shadow-inner">
+                🐶
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-black/60">
+              Klikni na kruh pre detail. Farba ide od červenej po zelenú podľa úspešnosti.
+            </div>
+          </div>
         </div>
 
-        <hr className="my-6 border-black/10" />
+        {/* PETS */}
+        <div className="mt-8 rounded-[2.5rem] border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur">
+          <div className="text-xl font-semibold">🐾 Tvoji miláčikovia</div>
 
-        {/* ADD TASK */}
-        <div className="text-xl font-semibold">➕ Add care task</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <input
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              placeholder="Meno (napr. Bella)"
+              value={petName}
+              onChange={(e) => setPetName(e.target.value)}
+            />
 
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <select
-            className="rounded-xl border border-black/10 px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
-            value={taskPetId}
-            onChange={(e) => setTaskPetId(e.target.value)}
-            disabled={pets.length === 0}
+            <select
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              value={petType}
+              onChange={(e) => setPetType(e.target.value)}
+            >
+              <option value="dog">Dog 🐶</option>
+              <option value="cat">Cat 🐱</option>
+              <option value="other">Other 🐾</option>
+            </select>
+
+            <input
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              type="date"
+              value={petBirthday}
+              onChange={(e) => setPetBirthday(e.target.value)}
+            />
+          </div>
+
+          <button
+            onClick={addPet}
+            disabled={!petName.trim() || savingPet}
+            className="mt-3 rounded-2xl bg-black px-4 py-3 font-medium text-white disabled:opacity-50"
           >
+            {savingPet ? "Ukladám..." : "Pridať miláčika"}
+          </button>
+
+          <div className="mt-6 space-y-2">
             {pets.length === 0 ? (
-              <option value="">Add a pet first</option>
+              <p className="text-black/60">Zatiaľ žiadny miláčik. Pridaj prvého psíka 🐶</p>
             ) : (
               pets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))
-            )}
-          </select>
-
-          <input
-            className="rounded-xl border border-black/10 px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 md:col-span-2"
-            placeholder="Task title (e.g., Morning walk)"
-            value={taskTitle}
-            onChange={(e) => setTaskTitle(e.target.value)}
-          />
-
-          <select
-            className="rounded-xl border border-black/10 px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
-            value={taskCategory}
-            onChange={(e) => setTaskCategory(e.target.value)}
-          >
-            <option value="walk">Walk</option>
-            <option value="meds">Meds</option>
-            <option value="vet">Vet</option>
-            <option value="grooming">Grooming</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <select
-            className="rounded-xl border border-black/10 px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
-            value={repeatType}
-            onChange={(e) => setRepeatType(e.target.value as any)}
-          >
-            <option value="none">One-time</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
-
-          <input
-            className="rounded-xl border border-black/10 px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-
-          <div className="text-sm text-black/50 flex items-center">
-            {repeatType === "weekly" ? "Pick weekdays below" : " "}
-          </div>
-        </div>
-
-        {repeatType === "weekly" && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {[
-              [1, "Mon"],
-              [2, "Tue"],
-              [3, "Wed"],
-              [4, "Thu"],
-              [5, "Fri"],
-              [6, "Sat"],
-              [7, "Sun"],
-            ].map(([n, label]) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => toggleWeekday(n as number)}
-                className={`rounded-xl border px-3 py-2 text-sm font-medium ${
-                  weekdays.includes(n as number)
-                    ? "border-black bg-black text-white"
-                    : "border-black/10 hover:bg-black/5"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <button
-          onClick={addTask}
-          disabled={pets.length === 0 || !taskPetId || !taskTitle.trim() || savingTask}
-          className="mt-3 rounded-xl bg-black px-4 py-3 font-medium text-white disabled:opacity-50"
-        >
-          {savingTask ? "Saving..." : "Add task"}
-        </button>
-
-        <hr className="my-6 border-black/10" />
-
-        {/* TODAY TASKS */}
-        <div className="text-xl font-semibold">✅ Today’s tasks</div>
-
-        <div className="mt-4 space-y-2">
-          {tasksToday.length === 0 ? (
-            <p className="text-black/60">No tasks due today. Add one for Bella 🐶</p>
-          ) : (
-            tasksToday.map((t) => {
-              const done = isDone(t.id, today);
-              return (
                 <div
-                  key={t.id}
-                  className="flex items-center justify-between rounded-xl border border-black/10 px-4 py-3"
+                  key={p.id}
+                  className="flex items-center justify-between rounded-3xl border border-black/10 bg-white px-4 py-3"
                 >
                   <div>
                     <div className="font-semibold">
-                      {done ? "✅" : "⬜"} {t.title}{" "}
-                      <span className="text-sm text-black/50">
-                        • {petNameById.get(t.pet_id) ?? "Pet"} • {t.category}
-                      </span>
+                      {p.type === "dog" ? "🐶" : p.type === "cat" ? "🐱" : "🐾"} {p.name}
                     </div>
                     <div className="text-sm text-black/60">
-                      {t.repeat_type === "daily"
-                        ? "Repeats: daily"
-                        : t.repeat_type === "weekly"
-                        ? "Repeats: weekly"
-                        : `One-time: ${t.start_date}`}
+                      {p.birthday ? `Narodeniny: ${p.birthday}` : "Narodeniny: —"}
                     </div>
                   </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => deleteTask(t)}
-                      className="rounded-xl border border-red-600/20 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
-                    >
-                      Delete
-                    </button>
-
-                    {done ? (
-                      <button
-                        onClick={() => unmarkDoneOn(t.id, today)}
-                        className="rounded-xl border border-black/10 px-4 py-2 text-sm font-medium hover:bg-black/5"
-                      >
-                        Undo
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => markDoneOn(t.id, today)}
-                        className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-                      >
-                        Mark done
-                      </button>
-                    )}
-                  </div>
+                  <div className="text-sm text-black/50">{p.type}</div>
                 </div>
-              );
-            })
-          )}
+              ))
+            )}
+          </div>
         </div>
 
-        <hr className="my-6 border-black/10" />
+        {/* ADD TASK */}
+        <div className="mt-6 rounded-[2.5rem] border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur">
+          <div className="text-xl font-semibold">➕ Pridať úlohu</div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <select
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              value={taskPetId}
+              onChange={(e) => setTaskPetId(e.target.value)}
+              disabled={pets.length === 0}
+            >
+              {pets.length === 0 ? <option value="">Najprv pridaj miláčika</option> : pets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+
+            <input
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 md:col-span-2"
+              placeholder="Názov (napr. Ranné venčenie)"
+              value={taskTitle}
+              onChange={(e) => setTaskTitle(e.target.value)}
+            />
+
+            <select
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              value={taskCategory}
+              onChange={(e) => setTaskCategory(e.target.value)}
+            >
+              <option value="walk">Walk</option>
+              <option value="meds">Meds</option>
+              <option value="vet">Vet</option>
+              <option value="grooming">Grooming</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <select
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              value={repeatType}
+              onChange={(e) => setRepeatType(e.target.value as any)}
+            >
+              <option value="none">One-time</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+
+            <input
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+
+            <div className="text-sm text-black/50 flex items-center">
+              {repeatType === "weekly" ? "Vyber dni nižšie" : " "}
+            </div>
+          </div>
+
+          {repeatType === "weekly" && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                [1, "Mon"],
+                [2, "Tue"],
+                [3, "Wed"],
+                [4, "Thu"],
+                [5, "Fri"],
+                [6, "Sat"],
+                [7, "Sun"],
+              ].map(([n, label]) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => toggleWeekday(n as number)}
+                  className={`rounded-2xl border px-3 py-2 text-sm font-medium ${
+                    weekdays.includes(n as number)
+                      ? "border-black bg-black text-white"
+                      : "border-black/10 bg-white hover:bg-black/5"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={addTask}
+            disabled={pets.length === 0 || !taskPetId || !taskTitle.trim() || savingTask}
+            className="mt-3 rounded-2xl bg-black px-4 py-3 font-medium text-white disabled:opacity-50"
+          >
+            {savingTask ? "Ukladám..." : "Pridať úlohu"}
+          </button>
+        </div>
+
+        {/* TODAY TASKS */}
+        <div className="mt-6 rounded-[2.5rem] border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur">
+          <div className="flex items-center justify-between">
+            <div className="text-xl font-semibold">✅ Dnešné úlohy</div>
+            <div className="text-sm text-black/55">
+              Hotovo: {tasksToday.filter((t) => isDone(t.id, today)).length}/{tasksToday.length}
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {tasksToday.length === 0 ? (
+              <p className="text-black/60">Dnes nič. Pridaj úlohu pre Bellu 🐶</p>
+            ) : (
+              tasksToday.map((t) => {
+                const done = isDone(t.id, today);
+                return (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between rounded-3xl border border-black/10 bg-white px-4 py-3"
+                  >
+                    <div>
+                      <div className="font-semibold">
+                        {done ? "✅" : "⬜"} {t.title}{" "}
+                        <span className="text-sm text-black/50">
+                          • {petNameById.get(t.pet_id) ?? "Pet"} • {t.category}
+                        </span>
+                      </div>
+                      <div className="text-sm text-black/60">
+                        {t.repeat_type === "daily"
+                          ? "Opakuje sa: denne"
+                          : t.repeat_type === "weekly"
+                          ? "Opakuje sa: týždenne"
+                          : `Jednorazovo: ${t.start_date}`}
+                      </div>
+
+                      {/* “riadok s možnosťou delete” len v Manage mode */}
+                      {manageMode && (
+                        <div className="mt-2 text-sm">
+                          <button
+                            onClick={() => {
+                              const ok = confirm(`Archivovať úlohu "${t.title}"? História ostane.`);
+                              if (ok) archiveTask(t.id);
+                            }}
+                            className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                          >
+                            🗑️ Delete (archivovať)
+                          </button>
+                          <span className="ml-2 text-xs text-black/45">
+                            (nezmaže históriu splnení)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      {done ? (
+                        <button
+                          onClick={() => unmarkDoneOn(t.id, today)}
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-black/5"
+                          title="Zruší splnenie len pre dnešok"
+                        >
+                          Undo (today)
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => markDoneOn(t.id, today)}
+                          className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                        >
+                          Mark done
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {manageMode && (
+            <div className="mt-4 rounded-3xl border border-black/10 bg-black/[0.02] p-4 text-sm text-black/60">
+              <div className="font-semibold">Manage mode</div>
+              <div className="mt-1">
+                “Delete” je teraz <span className="font-semibold">archivácia</span> — úloha zmizne z dneška, ale história
+                splnení zostane uložená.
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* UPCOMING */}
-        <div className="text-xl font-semibold">📆 Upcoming (next 7 days)</div>
+        <div className="mt-6 rounded-[2.5rem] border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur">
+          <div className="text-xl font-semibold">📆 Najbližších 7 dní</div>
 
-        <div className="mt-4 space-y-4">
-          {upcomingDays.every((d) => (tasksByDay.get(d) ?? []).length === 0) ? (
-            <p className="text-black/60">Nothing scheduled in the next 7 days.</p>
-          ) : (
-            upcomingDays.map((day) => {
-              const list = tasksByDay.get(day) ?? [];
-              if (list.length === 0) return null;
+          <div className="mt-4 space-y-4">
+            {upcomingDays.every((d) => (tasksByDay.get(d) ?? []).length === 0) ? (
+              <p className="text-black/60">Nič naplánované.</p>
+            ) : (
+              upcomingDays.map((day) => {
+                const list = tasksByDay.get(day) ?? [];
+                if (list.length === 0) return null;
 
-              return (
-                <div key={day} className="rounded-2xl border border-black/10 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold">{day}</div>
-                    <div className="text-sm text-black/50">
-                      Done: {(doneByDate.get(day)?.size ?? 0)}/{list.length}
+                return (
+                  <div key={day} className="rounded-3xl border border-black/10 bg-white p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold">{day}</div>
+                      <div className="text-sm text-black/50">
+                        Hotovo: {(doneByDate.get(day)?.size ?? 0)}/{list.length}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {list.map((t) => {
+                        const done = isDone(t.id, day);
+                        return (
+                          <div
+                            key={t.id}
+                            className="flex items-center justify-between rounded-3xl border border-black/10 bg-white px-4 py-3"
+                          >
+                            <div>
+                              <div className="font-semibold">
+                                {done ? "✅" : "⬜"} {t.title}{" "}
+                                <span className="text-sm text-black/50">
+                                  • {petNameById.get(t.pet_id) ?? "Pet"} • {t.category}
+                                </span>
+                              </div>
+                              <div className="text-sm text-black/60">
+                                {t.repeat_type === "daily"
+                                  ? "Opakuje sa: denne"
+                                  : t.repeat_type === "weekly"
+                                  ? "Opakuje sa: týždenne"
+                                  : "Jednorazovo"}
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                              {done ? (
+                                <button
+                                  onClick={() => unmarkDoneOn(t.id, day)}
+                                  className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-black/5"
+                                >
+                                  Undo
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => markDoneOn(t.id, day)}
+                                  className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                                >
+                                  Mark done
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-
-                  <div className="mt-3 space-y-2">
-                    {list.map((t) => {
-                      const done = isDone(t.id, day);
-                      return (
-                        <div
-                          key={t.id}
-                          className="flex items-center justify-between rounded-xl border border-black/10 px-4 py-3"
-                        >
-                          <div>
-                            <div className="font-semibold">
-                              {done ? "✅" : "⬜"} {t.title}{" "}
-                              <span className="text-sm text-black/50">
-                                • {petNameById.get(t.pet_id) ?? "Pet"} • {t.category}
-                              </span>
-                            </div>
-                            <div className="text-sm text-black/60">
-                              {t.repeat_type === "daily"
-                                ? "Repeats: daily"
-                                : t.repeat_type === "weekly"
-                                ? "Repeats: weekly"
-                                : "One-time"}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => deleteTask(t)}
-                              className="rounded-xl border border-red-600/20 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
-                            >
-                              Delete
-                            </button>
-
-                            {done ? (
-                              <button
-                                onClick={() => unmarkDoneOn(t.id, day)}
-                                className="rounded-xl border border-black/10 px-4 py-2 text-sm font-medium hover:bg-black/5"
-                              >
-                                Undo
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => markDoneOn(t.id, day)}
-                                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-                              >
-                                Mark done
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Week detail modal */}
+      {showWeekDetail && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4">
+          <div className="w-full max-w-2xl rounded-[2.5rem] border border-black/10 bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-2xl font-semibold">📊 Detail týždňa</div>
+                <div className="mt-1 text-sm text-black/60">
+                  {weekStart} – {addDaysISO(weekStart, 6)}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWeekDetail(false)}
+                className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-medium hover:bg-black/5"
+              >
+                Zavrieť
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2 md:items-center">
+              <div className="flex justify-center">
+                <ProgressRing percent={weekStats.percent} />
+              </div>
+              <div className="rounded-3xl bg-black/[0.03] p-4">
+                <div className="text-sm text-black/55">Súhrn</div>
+                <div className="mt-1 text-xl font-semibold">
+                  {weekStats.done}/{weekStats.total} hotovo
+                </div>
+                <div className="mt-2 text-sm text-black/60">
+                  Kliknutím na úlohy ich riešiš v Today / Upcoming.
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-2">
+              {weekDays.map((day) => {
+                const due = tasks.filter((t) => isDueOnDate(t, day));
+                const doneSet = doneByDate.get(day) ?? new Set<string>();
+                const doneCount = due.filter((t) => doneSet.has(t.id)).length;
+
+                return (
+                  <div key={day} className="flex items-center justify-between rounded-3xl border border-black/10 px-4 py-3">
+                    <div className="font-medium">{day}</div>
+                    <div className="text-sm text-black/60">
+                      {doneCount}/{due.length} hotovo
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
