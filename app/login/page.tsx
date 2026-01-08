@@ -12,10 +12,13 @@ export default function LoginPage() {
     setStatus("sending");
     setError("");
 
+    // 🔑 DÔLEŽITÉ: dynamický redirect (funguje lokálne aj na Verceli)
+    const redirectTo = `${window.location.origin}/today`;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: "http://localhost:3000/today",
+        emailRedirectTo: redirectTo,
       },
     });
 
