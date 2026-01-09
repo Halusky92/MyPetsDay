@@ -1,207 +1,222 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AppLogo from "../components/AppLogo";
-import { HealthCard, RecordsCard, CostsCard } from "./extraCards";
-import { ExtraPetCards } from "./ExtraPetCards";
+import { 
+  Stethoscope, 
+  FileText, 
+  Banknote, 
+  Plus, 
+  Trash2, 
+  CheckCircle2, 
+  Circle, 
+  Archive, 
+  Search, 
+  Calendar 
+} from "lucide-react";
 
-// --- TYPY ---
-type Pet = { id: string; name: string; type: string; birthday: string | null; breed: string | null; };
-type Task = { id: string; pet_id: string; title: string; category: string; repeat_type: "none" | "daily" | "weekly"; start_date: string; weekdays: number[] | null; is_archived?: boolean; };
+// --- 1. KOMPONENT PRE NOVÉ KARTY (ZDRAVIE A NÁKLADY) ---
+function PetCareSection({ pets }: { pets: any[] }) {
+  const [health, setHealth] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [hTitle, setHTitle] = useState("");
+  const [hDate, setHDate] = useState("");
+  const [eAmount, setEAmount] = useState("");
 
-// --- KOMPONENTY POZADIA ---
-function EnhancedBackground() {
+  const petId = pets[0]?.id;
+
+  const loadPetData = async () => {
+    if (!petId) return;
+    const { data: h } = await supabase.from("pet_health").select("*").eq("pet_id", petId).order("due_on");
+    const { data: e } = await supabase.from("pet_expenses").select("*").eq("pet_id", petId);
+    setHealth(h || []);
+    setExpenses(e || []);
+  };
+
+  useEffect(() => { loadPetData(); }, [petId]);
+
+  const addHealth = async () => {
+    if (!hTitle || !hDate) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("pet_health").insert([{ pet_id: petId, title: hTitle, due_on: hDate, user_id: user?.id }]);
+    setHTitle(""); setHDate(""); loadPetData();
+  };
+
+  const addExpense = async () => {
+    if (!eAmount) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("pet_expenses").insert([{ pet_id: petId, amount: Number(eAmount), category: 'Ostatné', spent_on: new Date(), user_id: user?.id }]);
+    setEAmount(""); loadPetData();
+  };
+
+  if (!petId) return null;
+
   return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-200 via-white to-emerald-50" />
-      
-      {/* Ilustrácia: Búda vpravo */}
-      <svg className="absolute bottom-10 right-[-20px] h-64 w-64 opacity-20 md:opacity-40" viewBox="0 0 200 200">
-        <path d="M40 180V90L100 40L160 90V180H40Z" fill="#8B4513" />
-        <path d="M100 40L30 95V105L100 50L170 105V95L100 40Z" fill="#5D2E0A" />
-        <path d="M80 180V140C80 128.954 88.9543 120 100 120C111.046 120 120 128.954 120 140V180H80Z" fill="#3E1F07" />
-      </svg>
+    <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2">
+      {/* Zdravotný pas */}
+      <div className="rounded-[2.5rem] bg-white p-8 shadow-sm border border-black/5 transition-all hover:shadow-md">
+        <div className="mb-6 flex items-center gap-3 text-blue-600 font-bold text-[10px] tracking-[0.2em] uppercase">
+          <div className="bg-blue-50 p-2 rounded-xl"><Stethoscope size={20}/></div>
+          Zdravotný pas
+        </div>
+        <div className="flex gap-2 mb-6">
+          <input className="w-full rounded-2xl border border-gray-100 bg-gray-50/50 px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all" placeholder="Názov očkovania..." value={hTitle} onChange={e => setHTitle(e.target.value)} />
+          <input type="date" className="rounded-2xl border border-gray-100 bg-gray-50/50 px-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" value={hDate} onChange={e => setHDate(e.target.value)} />
+          <button onClick={addHealth} className="bg-black text-white px-5 rounded-2xl hover:bg-zinc-800 transition-all active:scale-95"><Plus size={20}/></button>
+        </div>
+        <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
+          {health.length === 0 && <p className="text-center text-gray-300 text-sm italic py-4">Žiadne záznamy</p>}
+          {health.map(h => (
+            <div key={h.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-[1.5rem] border border-black/[0.02]">
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-zinc-800">{h.title}</span>
+                <span className="text-[10px] font-medium text-blue-500 uppercase tracking-wider">{h.due_on}</span>
+              </div>
+              <Calendar size={14} className="text-black/10" />
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {/* Ilustrácia: Miska vľavo */}
-      <svg className="absolute bottom-20 left-10 h-32 w-32 opacity-20 md:opacity-40" viewBox="0 0 100 100">
-        <path d="M10 80C10 70 30 65 50 65C70 65 90 70 90 80H10Z" fill="#94A3B8" />
-        <path d="M30 65L40 50H60L70 65H30Z" fill="#64748B" />
-        <circle cx="50" cy="55" r="8" fill="#F1F5F9" /> {/* Kosť v miske */}
-        <rect x="42" y="52" width="16" height="6" rx="3" fill="#F1F5F9" />
-      </svg>
-      
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-emerald-100/50 blur-3xl" />
+      {/* Náklady */}
+      <div className="rounded-[2.5rem] bg-zinc-900 p-8 text-white shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-10">
+          <Banknote size={120} />
+        </div>
+        <div className="mb-4 flex items-center gap-3 text-emerald-400 font-bold text-[10px] tracking-[0.2em] uppercase">
+          <Banknote size={20}/> Investované do lásky
+        </div>
+        <div className="mb-8">
+          <div className="text-5xl font-black tracking-tighter">
+            {expenses.reduce((a, b) => a + Number(b.amount), 0).toFixed(2)} <span className="text-2xl text-emerald-400">€</span>
+          </div>
+          <p className="text-white/40 text-xs mt-1 font-medium italic">Celková suma za všetky obdobia</p>
+        </div>
+        <div className="flex gap-2 relative z-10">
+          <input type="number" className="w-full rounded-2xl bg-white/10 border-none px-5 py-4 text-sm text-white placeholder:text-white/20 focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Pridať sumu v €" value={eAmount} onChange={e => setEAmount(e.target.value)} />
+          <button onClick={addExpense} className="bg-emerald-500 text-black px-6 rounded-2xl font-bold hover:bg-emerald-400 transition-all active:scale-95">Uložiť</button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function Accordion({ title, children, icon }: { title: string, children: React.ReactNode, icon?: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-4 overflow-hidden rounded-[2rem] border border-black/5 bg-white/70 backdrop-blur-md shadow-sm transition-all hover:shadow-md">
-      <button 
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between p-5 text-left font-bold text-black"
-      >
-        <span className="flex items-center gap-3 text-lg">{icon} {title}</span>
-        <span className={`transform transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
-      </button>
-      {open && <div className="p-6 border-t border-black/5 bg-white/40">{children}</div>}
-    </div>
-  );
-}
-
+// --- 2. HLAVNÝ KOMPONENT STRÁNKY ---
 export default function TodayPage() {
+  const [pets, setPets] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pets, setPets] = useState<Pet[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [email, setEmail] = useState<string | null>(null);
-  const [showManage, setShowManage] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showArchive, setShowArchive] = useState(false);
 
   useEffect(() => {
-    async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { window.location.href = "/login"; return; }
-      setEmail(user.email ?? null);
-      
-      const [p, t] = await Promise.all([
-        supabase.from("pets").select("*").order("created_at", { ascending: false }),
-        supabase.from("care_tasks").select("*").eq("is_archived", false)
-      ]);
-      setPets(p.data ?? []);
-      setTasks(t.data ?? []);
+    async function fetchData() {
+      const { data: p } = await supabase.from("pets").select("*");
+      const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+      setPets(p || []);
+      setTasks(t || []);
       setLoading(false);
     }
-    init();
+    fetchData();
   }, []);
 
-  if (loading) return <div className="flex h-screen items-center justify-center font-bold">Labky na ceste... 🐾</div>;
+  const toggleTask = async (id: string, currentStatus: boolean) => {
+    await supabase.from("tasks").update({ is_completed: !currentStatus }).eq("id", id);
+    setTasks(tasks.map(t => t.id === id ? { ...t, is_completed: !currentStatus } : t));
+  };
+
+  const activeTasks = tasks.filter(t => !t.is_completed && t.title.toLowerCase().includes(searchQuery.toLowerCase()));
+  const archivedTasks = tasks.filter(t => t.is_completed);
+
+  if (loading) return (
+    <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[#FDFDFD]">
+       <div className="h-12 w-12 animate-spin rounded-full border-4 border-black border-t-transparent"></div>
+       <p className="font-bold italic text-black/20 animate-pulse">Pripravujem tvoj deň...</p>
+    </div>
+  );
 
   return (
-    <main className="relative min-h-screen pb-20 overflow-x-hidden">
-      <EnhancedBackground />
-      
-      <div className="mx-auto max-w-4xl px-5 py-8">
+    <main className="min-h-screen bg-[#FDFDFD] p-6 lg:p-12 text-zinc-900">
+      <div className="mx-auto max-w-5xl">
         
-        {/* TOP NAV: Vycentrované Logo a Odhlásiť */}
-        <div className="flex flex-col items-center mb-10 text-center">
-            <div className="relative group mb-4">
-                <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                <AppLogo size={140} className="relative drop-shadow-2xl" />
-            </div>
-            <h1 className="text-4xl font-black tracking-tight text-gray-900 mb-1">MyPetsDay</h1>
-            <p className="text-gray-500 font-medium">Vitaj späť, {email?.split('@')[0]}! ✨</p>
-            
-            <button 
-              onClick={() => supabase.auth.signOut().then(() => window.location.href="/login")}
-              className="mt-4 flex items-center gap-2 rounded-full bg-white/80 px-5 py-2 text-xs font-bold text-gray-600 shadow-sm border border-black/5 hover:bg-red-50 hover:text-red-600 transition-all"
-            >
-              Odhlásiť sa
-            </button>
+        {/* Hlavička */}
+        <header className="mb-12 flex items-end justify-between">
+          <div>
+            <AppLogo />
+            <p className="mt-2 text-sm font-medium text-black/30">Dnes je {new Date().toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          </div>
+          <div className="text-right">
+             <h1 className="text-4xl font-black italic tracking-tighter text-black/90">Môj Deň</h1>
+          </div>
+        </header>
+
+        {/* Vyhľadávanie */}
+        <div className="relative mb-8">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-black/20" size={18} />
+          <input 
+            type="text" 
+            placeholder="Hľadať v úlohách..." 
+            className="w-full rounded-[2rem] border border-black/5 bg-white py-4 pl-12 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
 
-        {/* SEKCE: TVOJI MILÁČIKOVIA (Tabuľky/Karty hneď na očiach) */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between px-2 mb-4">
-            <h2 className="text-xl font-extrabold text-gray-800">Tvoja svorka 🐾</h2>
-            <button 
-                onClick={() => setShowManage(!showManage)}
-                className="text-sm font-bold text-blue-600 bg-blue-50 px-4 py-1.5 rounded-full hover:bg-blue-100"
-            >
-                {showManage ? "Hotovo" : "Upraviť"}
-            </button>
+        {/* Zoznam úloh */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between mb-6 px-4">
+            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-black/20 italic">Aktuálne potreby</h2>
+            <span className="rounded-full bg-black px-3 py-1 text-[10px] font-bold text-white">{activeTasks.length} Úloh</span>
           </div>
-          
-          <div className="flex gap-4 overflow-x-auto pb-4 px-2 snap-x">
-            {pets.map(p => (
-              <div key={p.id} className="min-w-[240px] snap-center rounded-[2.5rem] bg-white border border-black/5 p-6 shadow-xl shadow-black/5 relative overflow-hidden group">
-                {/* Dekoračný kruh v pozadí karty */}
-                <div className="absolute -right-4 -top-4 h-20 w-20 bg-yellow-100 rounded-full opacity-50 group-hover:scale-110 transition-transform" />
-                
-                <div className="relative">
-                    <span className="text-3xl mb-2 block">{p.type === 'dog' ? '🐶' : p.type === 'cat' ? '🐱' : '🐾'}</span>
-                    <h3 className="text-2xl font-black text-gray-800 leading-none mb-1">{p.name}</h3>
-                    <p className="text-sm text-gray-500 font-medium">{p.breed || 'Miláčik'}</p>
-                    
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                        <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Dnešné úlohy</p>
-                        <p className="text-lg font-bold text-gray-700">
-                            {tasks.filter(t => t.pet_id === p.id).length} aktívnych
-                        </p>
-                    </div>
 
-                    {showManage && (
-                        <button 
-                            onClick={async () => {
-                                if(confirm(`Zmazať miláčika ${p.name}?`)) {
-                                    await supabase.from("pets").delete().eq("id", p.id);
-                                    window.location.reload();
-                                }
-                            }}
-                            className="absolute top-0 right-0 p-2 bg-red-100 text-red-600 rounded-full"
-                        >
-                            🗑️
-                        </button>
-                    )}
-                </div>
+          <div className="grid gap-3">
+            {activeTasks.length === 0 ? (
+              <div className="rounded-[2.5rem] border-2 border-dashed border-black/5 p-12 text-center">
+                <p className="text-sm font-medium italic text-black/20">Všetko je hotové, môžeš si oddýchnuť 🦴</p>
               </div>
-            ))}
-            {pets.length === 0 && (
-                <div className="w-full text-center p-10 bg-white/50 rounded-[2.5rem] border-2 border-dashed border-gray-300">
-                    <p className="font-bold text-gray-400">Ešte tu nemáš nikoho. Pridaj si prvého miláčika!</p>
+            ) : (
+              activeTasks.map(task => (
+                <div key={task.id} onClick={() => toggleTask(task.id, task.is_completed)} className="group flex cursor-pointer items-center justify-between rounded-[2rem] bg-white border border-black/[0.03] p-5 shadow-sm transition-all hover:shadow-md active:scale-[0.98]">
+                  <div className="flex items-center gap-4">
+                    <Circle className="text-black/10 transition-colors group-hover:text-black/30" />
+                    <span className="font-bold text-zinc-700">{task.title}</span>
+                  </div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-black/10">Klikni pre splnenie</div>
                 </div>
+              ))
             )}
           </div>
         </section>
 
-        {/* DNEŠNÝ PLÁN */}
-        <div className="bg-black/5 rounded-[2.5rem] p-2 mb-8">
-            <div className="bg-white rounded-[2.2rem] p-6 shadow-sm">
-                <h2 className="text-xl font-extrabold mb-4">Dnešné povinnosti 📅</h2>
-                <div className="space-y-3">
-                    {tasks.length > 0 ? tasks.slice(0, 3).map(t => (
-                        <div key={t.id} className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group">
-                            <div className="h-5 w-5 rounded-full border-2 border-gray-300 group-hover:border-green-500 transition-colors" />
-                            <span className="font-bold text-gray-700">{t.title}</span>
-                            <span className="ml-auto text-xs font-bold px-2 py-1 bg-white rounded-lg text-gray-400">
-                                {pets.find(p => p.id === t.pet_id)?.name}
-                            </span>
-                        </div>
-                    )) : (
-                        <p className="text-center text-gray-400 py-4 font-medium">Dnes máš veget. Žiadne úlohy! 🏖️</p>
-                    )}
+        {/* --- NOVÉ PET KARTY --- */}
+        <PetCareSection pets={pets} />
+
+        {/* Archív (Zjednodušený) */}
+        <footer className="mt-20">
+          <button 
+            onClick={() => setShowArchive(!showArchive)}
+            className="mx-auto flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-black/20 hover:text-black/40 transition-colors"
+          >
+            <Archive size={14} /> {showArchive ? "Skryť históriu" : "Zobraziť históriu dňa"}
+          </button>
+          
+          {showArchive && (
+            <div className="mt-8 space-y-2 animate-in fade-in slide-in-from-top-4">
+              {archivedTasks.map(t => (
+                <div key={t.id} className="flex items-center gap-3 px-6 py-2 opacity-30 italic line-through text-sm">
+                  <CheckCircle2 size={14} /> {t.title}
                 </div>
+              ))}
             </div>
-        </div>
+          )}
 
-        {/* ACCORDIONY - Čistý a scrollovateľný zoznam */}
-        <div className="space-y-4">
-            <Accordion title="Pridať novú úlohu" icon="✨">
-                {/* Tu by šiel tvoj formulár na pridanie úlohy */}
-                <p className="text-sm text-gray-500">Formulár na pridávanie úloh...</p>
-            </Accordion>
-            
-            <Accordion title="Zdravotný pas" icon="💉">
-                <HealthCard pets={pets} />
-            </Accordion>
-
-            <Accordion title="Náklady a výdavky" icon="💰">
-                <CostsCard pets={pets} />
-            </Accordion>
-
-            <Accordion title="Záznamy a denník" icon="📝">
-                <RecordsCard pets={pets} />
-            </Accordion>
-        </div>
+          <div className="mt-20 border-t border-black/5 pt-8 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-black/10">MyPetsDay • Všetko pre nich</p>
+          </div>
+        </footer>
 
       </div>
-      {/* ✅ Tieto nové karty sa zobrazia len ak máš nejaké zvieratko */}
-{pets.length > 0 && (
-  <div className="mt-12">
-    <ExtraPetCards pets={pets} />
-  </div>
-)}
     </main>
   );
 }
