@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AppLogo from "../components/AppLogo";
 import { HealthCard, RecordsCard, CostsCard } from "./extraCards";
+import { ExtraPetCards } from "./ExtraPetCards";
 
 // --- TYPY ---
 type Pet = { id: string; name: string; type: string; birthday: string | null; breed: string | null; };
@@ -195,6 +196,12 @@ export default function TodayPage() {
         </div>
 
       </div>
+      {/* ✅ Tieto nové karty sa zobrazia len ak máš nejaké zvieratko */}
+{pets.length > 0 && (
+  <div className="mt-12">
+    <ExtraPetCards pets={pets} />
+  </div>
+)}
     </main>
   );
 }
