@@ -1,221 +1,1250 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AppLogo from "../components/AppLogo";
-import { 
-  Stethoscope, 
-  FileText, 
-  Banknote, 
-  Plus, 
-  Trash2, 
-  CheckCircle2, 
-  Circle, 
-  Archive, 
-  Search, 
-  Calendar 
-} from "lucide-react";
+import { HealthCard, RecordsCard, CostsCard } from "./ExtraPetCards";
 
-// --- 1. KOMPONENT PRE NOVÉ KARTY (ZDRAVIE A NÁKLADY) ---
-function PetCareSection({ pets }: { pets: any[] }) {
-  const [health, setHealth] = useState<any[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [hTitle, setHTitle] = useState("");
-  const [hDate, setHDate] = useState("");
-  const [eAmount, setEAmount] = useState("");
+type Pet = {
+  id: string;
+  name: string;
+  type: string;
+  birthday: string | null;
+  breed: string | null;
+};
 
-  const petId = pets[0]?.id;
+type Task = {
+  id: string;
+  pet_id: string;
+  title: string;
+  category: string;
+  repeat_type: "none" | "daily" | "weekly";
+  start_date: string; // YYYY-MM-DD
+  weekdays: number[] | null; // 1..7
+  is_archived?: boolean;
+};
 
-  const loadPetData = async () => {
-    if (!petId) return;
-    const { data: h } = await supabase.from("pet_health").select("*").eq("pet_id", petId).order("due_on");
-    const { data: e } = await supabase.from("pet_expenses").select("*").eq("pet_id", petId);
-    setHealth(h || []);
-    setExpenses(e || []);
-  };
+function todayISO() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function addDaysISO(baseISO: string, days: number) {
+  const [y, m, d] = baseISO.split("-").map(Number);
+  const base = new Date(y, m - 1, d);
+  base.setDate(base.getDate() + days);
+  const yyyy = base.getFullYear();
+  const mm = String(base.getMonth() + 1).padStart(2, "0");
+  const dd = String(base.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function weekday1to7(d = new Date()) {
+  const js = d.getDay();
+  return js === 0 ? 7 : js;
+}
+function weekday1to7FromISO(dateISO: string) {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return weekday1to7(dt);
+}
+function startOfWeekMondayISO(dateISO: string) {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const w = weekday1to7(dt);
+  dt.setDate(dt.getDate() - (w - 1));
+  const yyyy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function clamp01(x: number) {
+  return Math.max(0, Math.min(1, x));
+}
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+function progressColor(p01: number) {
+  const t = clamp01(p01);
+  const hue = lerp(0, 120, t); // red->green
+  return `hsl(${hue} 80% 40%)`;
+}
 
-  useEffect(() => { loadPetData(); }, [petId]);
+function TodayBackground() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-100 to-white" />
+      <div className="absolute right-8 top-10 h-24 w-24 rounded-full bg-yellow-200 shadow-[0_0_90px_rgba(253,224,71,0.55)]" />
+      <svg className="absolute left-[-90px] top-10 h-40 w-[560px] opacity-95" viewBox="0 0 520 180">
+        <path
+          d="M150 130c-40 0-72-22-72-49 0-22 22-41 54-46 10-29 45-49 88-49 51 0 92 30 92 66 0 3 0 5-.4 8 39 5 70 26 70 52 0 29-36 52-80 52H150z"
+          fill="white"
+          opacity="0.95"
+        />
+      </svg>
+      <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-emerald-200 via-emerald-100 to-transparent" />
+    </div>
+  );
+}
 
-  const addHealth = async () => {
-    if (!hTitle || !hDate) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("pet_health").insert([{ pet_id: petId, title: hTitle, due_on: hDate, user_id: user?.id }]);
-    setHTitle(""); setHDate(""); loadPetData();
-  };
+function RingProgress({
+  total,
+  done,
+  size = 180,
+  animate = true,
+}: {
+  total: number;
+  done: number;
+  size?: number;
+  animate?: boolean;
+}) {
+  const p01 = total === 0 ? 0 : done / total;
+  const pct = Math.round(p01 * 100);
 
-  const addExpense = async () => {
-    if (!eAmount) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("pet_expenses").insert([{ pet_id: petId, amount: Number(eAmount), category: 'Ostatné', spent_on: new Date(), user_id: user?.id }]);
-    setEAmount(""); loadPetData();
-  };
+  const r = 56;
+  const stroke = 14;
+  const c = 2 * Math.PI * r;
 
-  if (!petId) return null;
+  const [animP, setAnimP] = useState(0);
+
+  useEffect(() => {
+    if (!animate) {
+      setAnimP(p01);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const from = animP;
+    const to = p01;
+    const dur = 700;
+
+    const tick = (now: number) => {
+      const t = clamp01((now - start) / dur);
+      const e = 1 - Math.pow(1 - t, 3);
+      setAnimP(from + (to - from) * e);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p01]);
+
+  const col = progressColor(animP);
+  const dash = c * animP;
+  const gap = c - dash;
 
   return (
-    <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2">
-      {/* Zdravotný pas */}
-      <div className="rounded-[2.5rem] bg-white p-8 shadow-sm border border-black/5 transition-all hover:shadow-md">
-        <div className="mb-6 flex items-center gap-3 text-blue-600 font-bold text-[10px] tracking-[0.2em] uppercase">
-          <div className="bg-blue-50 p-2 rounded-xl"><Stethoscope size={20}/></div>
-          Zdravotný pas
-        </div>
-        <div className="flex gap-2 mb-6">
-          <input className="w-full rounded-2xl border border-gray-100 bg-gray-50/50 px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all" placeholder="Názov očkovania..." value={hTitle} onChange={e => setHTitle(e.target.value)} />
-          <input type="date" className="rounded-2xl border border-gray-100 bg-gray-50/50 px-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" value={hDate} onChange={e => setHDate(e.target.value)} />
-          <button onClick={addHealth} className="bg-black text-white px-5 rounded-2xl hover:bg-zinc-800 transition-all active:scale-95"><Plus size={20}/></button>
-        </div>
-        <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
-          {health.length === 0 && <p className="text-center text-gray-300 text-sm italic py-4">Žiadne záznamy</p>}
-          {health.map(h => (
-            <div key={h.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-[1.5rem] border border-black/[0.02]">
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-zinc-800">{h.title}</span>
-                <span className="text-[10px] font-medium text-blue-500 uppercase tracking-wider">{h.due_on}</span>
-              </div>
-              <Calendar size={14} className="text-black/10" />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Náklady */}
-      <div className="rounded-[2.5rem] bg-zinc-900 p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-10">
-          <Banknote size={120} />
-        </div>
-        <div className="mb-4 flex items-center gap-3 text-emerald-400 font-bold text-[10px] tracking-[0.2em] uppercase">
-          <Banknote size={20}/> Investované do lásky
-        </div>
-        <div className="mb-8">
-          <div className="text-5xl font-black tracking-tighter">
-            {expenses.reduce((a, b) => a + Number(b.amount), 0).toFixed(2)} <span className="text-2xl text-emerald-400">€</span>
-          </div>
-          <p className="text-white/40 text-xs mt-1 font-medium italic">Celková suma za všetky obdobia</p>
-        </div>
-        <div className="flex gap-2 relative z-10">
-          <input type="number" className="w-full rounded-2xl bg-white/10 border-none px-5 py-4 text-sm text-white placeholder:text-white/20 focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Pridať sumu v €" value={eAmount} onChange={e => setEAmount(e.target.value)} />
-          <button onClick={addExpense} className="bg-emerald-500 text-black px-6 rounded-2xl font-bold hover:bg-emerald-400 transition-all active:scale-95">Uložiť</button>
-        </div>
+    <div className="relative grid place-items-center">
+      <svg width={size} height={size} viewBox="0 0 140 140">
+        <circle cx="70" cy="70" r={r} stroke="rgba(0,0,0,0.12)" strokeWidth={stroke} fill="none" />
+        <circle
+          cx="70"
+          cy="70"
+          r={r}
+          stroke={col}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${gap}`}
+          transform="rotate(-90 70 70)"
+        />
+      </svg>
+      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="text-3xl font-semibold text-black">{pct}%</div>
       </div>
     </div>
   );
 }
 
-// --- 2. HLAVNÝ KOMPONENT STRÁNKY ---
+function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className={`relative h-9 w-16 rounded-full border border-black/10 transition ${
+        value ? "bg-black" : "bg-white"
+      }`}
+      aria-label="toggle"
+    >
+      <span
+        className={`absolute top-1 h-7 w-7 rounded-full bg-white shadow-sm transition ${
+          value ? "left-8" : "left-1"
+        }`}
+      />
+    </button>
+  );
+}
+
+function calcBirthdayInfo(birthdayISO: string | null) {
+  if (!birthdayISO) return null;
+
+  const [y, m, d] = birthdayISO.split("-").map(Number);
+  const b = new Date(y, m - 1, d);
+  const now = new Date();
+
+  const msDay = 24 * 60 * 60 * 1000;
+
+  let years = now.getFullYear() - b.getFullYear();
+  const thisYearsBirthday = new Date(now.getFullYear(), b.getMonth(), b.getDate());
+  if (now < thisYearsBirthday) years -= 1;
+
+  const lastBirthday = new Date(now.getFullYear(), b.getMonth(), b.getDate());
+  if (now < lastBirthday) lastBirthday.setFullYear(lastBirthday.getFullYear() - 1);
+
+  const daysSince = Math.floor((now.getTime() - lastBirthday.getTime()) / msDay);
+
+  const nextBirthday = new Date(now.getFullYear(), b.getMonth(), b.getDate());
+  if (now >= nextBirthday) nextBirthday.setFullYear(nextBirthday.getFullYear() + 1);
+
+  const daysToNext = Math.ceil((nextBirthday.getTime() - now.getTime()) / msDay);
+
+  return { years, daysSince, daysToNext };
+}
+
+const DOG_BREEDS = [
+  "Mix / Neviem",
+  "Dalmatín",
+  "Labrador retriever",
+  "Zlatý retriever",
+  "Nemecký ovčiak",
+  "Border kólia",
+  "Jazvečík",
+  "Pudel",
+  "Francúzsky buldoček",
+  "Jack Russell teriér",
+  "Husky",
+  "Chihuahua",
+];
+
 export default function TodayPage() {
-  const [pets, setPets] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showArchive, setShowArchive] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
+  const [doneByDate, setDoneByDate] = useState<Map<string, Set<string>>>(new Map());
+
+  const [remind7, setRemind7] = useState(false);
+  const [filter, setFilter] = useState<"all" | "open" | "done">("all");
+
+  const [showAddPet, setShowAddPet] = useState(false);
+  const [petName, setPetName] = useState("");
+  const [petType, setPetType] = useState("dog");
+  const [petBreed, setPetBreed] = useState("Mix / Neviem");
+  const [petBreedCustom, setPetBreedCustom] = useState("");
+  const [petBirthday, setPetBirthday] = useState("");
+
+  const [editPetId, setEditPetId] = useState<string | null>(null);
+  const [editPetName, setEditPetName] = useState("");
+  const [editPetType, setEditPetType] = useState("dog");
+  const [editPetBreed, setEditPetBreed] = useState("Mix / Neviem");
+  const [editPetBreedCustom, setEditPetBreedCustom] = useState("");
+  const [editPetBirthday, setEditPetBirthday] = useState("");
+
+  const [taskPetId, setTaskPetId] = useState<string>("");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskCategory, setTaskCategory] = useState("walk");
+  const [repeatType, setRepeatType] = useState<"none" | "daily" | "weekly">("daily");
+  const [startDate, setStartDate] = useState(todayISO());
+  const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7]);
+
+  const [savingPet, setSavingPet] = useState(false);
+  const [savingTask, setSavingTask] = useState(false);
+
+  const today = useMemo(() => todayISO(), []);
+  const weekStart = useMemo(() => startOfWeekMondayISO(today), [today]);
+  const weekDaysIso = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysISO(weekStart, i)), [weekStart]);
+  const rangeStart = weekStart;
+  const rangeEnd = useMemo(() => addDaysISO(weekStart, 6), [weekStart]);
 
   useEffect(() => {
-    async function fetchData() {
-      const { data: p } = await supabase.from("pets").select("*");
-      const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
-      setPets(p || []);
-      setTasks(t || []);
-      setLoading(false);
-    }
-    fetchData();
+    const saved = localStorage.getItem("mypetsday_remind7");
+    setRemind7(saved === "1");
   }, []);
+  useEffect(() => {
+    localStorage.setItem("mypetsday_remind7", remind7 ? "1" : "0");
+  }, [remind7]);
 
-  const toggleTask = async (id: string, currentStatus: boolean) => {
-    await supabase.from("tasks").update({ is_completed: !currentStatus }).eq("id", id);
-    setTasks(tasks.map(t => t.id === id ? { ...t, is_completed: !currentStatus } : t));
-  };
+  async function requireUser() {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) return null;
+    return data.user;
+  }
 
-  const activeTasks = tasks.filter(t => !t.is_completed && t.title.toLowerCase().includes(searchQuery.toLowerCase()));
-  const archivedTasks = tasks.filter(t => t.is_completed);
+  async function loadPets() {
+    const { data, error } = await supabase
+      .from("pets")
+      .select("id,name,type,birthday,breed,created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as Pet[];
+  }
 
-  if (loading) return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[#FDFDFD]">
-       <div className="h-12 w-12 animate-spin rounded-full border-4 border-black border-t-transparent"></div>
-       <p className="font-bold italic text-black/20 animate-pulse">Pripravujem tvoj deň...</p>
-    </div>
-  );
+  async function loadTasksActive() {
+    const { data, error } = await supabase
+      .from("care_tasks")
+      .select("id,pet_id,title,category,repeat_type,start_date,weekdays,is_archived,created_at")
+      .eq("is_archived", false)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as Task[];
+  }
+
+  async function loadTasksArchived() {
+    const { data, error } = await supabase
+      .from("care_tasks")
+      .select("id,pet_id,title,category,repeat_type,start_date,weekdays,is_archived,created_at")
+      .eq("is_archived", true)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return (data ?? []) as Task[];
+  }
+
+  async function loadDoneInRange() {
+    const { data, error } = await supabase
+      .from("task_completions")
+      .select("task_id, completed_on")
+      .gte("completed_on", rangeStart)
+      .lte("completed_on", rangeEnd);
+    if (error) throw error;
+
+    const map = new Map<string, Set<string>>();
+    for (const row of data ?? []) {
+      const day = row.completed_on as string;
+      const taskId = row.task_id as string;
+      if (!map.has(day)) map.set(day, new Set());
+      map.get(day)!.add(taskId);
+    }
+    return map;
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    async function init() {
+      setError("");
+      const user = await requireUser();
+      if (!mounted) return;
+
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setEmail(user.email ?? null);
+
+      try {
+        const [p, t, a, doneMap] = await Promise.all([
+          loadPets(),
+          loadTasksActive(),
+          loadTasksArchived(),
+          loadDoneInRange(),
+        ]);
+
+        if (!mounted) return;
+
+        setPets(p);
+        setTasks(t);
+        setArchivedTasks(a);
+        setDoneByDate(doneMap);
+
+        if (p.length > 0) setTaskPetId(p[0].id);
+        setShowAddPet(p.length === 0);
+      } catch (e: any) {
+        setError(e.message ?? "Failed to load data");
+      } finally {
+        setLoading(false);
+      }
+    }
+    init();
+    return () => {
+      mounted = false;
+    };
+  }, [rangeStart, rangeEnd]);
+
+  function isDueOnDate(t: Task, dateISO: string) {
+    if (t.start_date > dateISO) return false;
+
+    if (t.repeat_type === "none") return t.start_date === dateISO;
+    if (t.repeat_type === "daily") return true;
+
+    if (t.repeat_type === "weekly") {
+      const w = weekday1to7FromISO(dateISO);
+      const days = t.weekdays ?? [];
+      return days.includes(w);
+    }
+    return false;
+  }
+
+  const petNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    pets.forEach((p) => m.set(p.id, p.name));
+    return m;
+  }, [pets]);
+
+  function isDone(taskId: string, dateISO: string) {
+    return doneByDate.get(dateISO)?.has(taskId) ?? false;
+  }
+
+  const tasksTodayAll = useMemo(() => tasks.filter((t) => isDueOnDate(t, today)), [tasks, today]);
+  const tasksToday = useMemo(() => {
+    if (filter === "all") return tasksTodayAll;
+    if (filter === "open") return tasksTodayAll.filter((t) => !isDone(t.id, today));
+    return tasksTodayAll.filter((t) => isDone(t.id, today));
+  }, [tasksTodayAll, filter, today]);
+
+  const todayDone = tasksTodayAll.filter((t) => isDone(t.id, today)).length;
+  const todayTotal = tasksTodayAll.length;
+  const todayLeft = Math.max(0, todayTotal - todayDone);
+
+  const weekCounts = useMemo(() => {
+    let total = 0;
+    let done = 0;
+    for (const day of weekDaysIso) {
+      const due = tasks.filter((t) => isDueOnDate(t, day));
+      total += due.length;
+      const doneSet = doneByDate.get(day) ?? new Set<string>();
+      done += due.filter((t) => doneSet.has(t.id)).length;
+    }
+    return { total, done };
+  }, [weekDaysIso, tasks, doneByDate]);
+
+  const streak = useMemo(() => {
+    let s = 0;
+    for (let i = 0; i < 14; i++) {
+      const day = addDaysISO(today, -i);
+      const doneSet = doneByDate.get(day);
+      if (doneSet && doneSet.size > 0) s += 1;
+      else break;
+    }
+    return s;
+  }, [doneByDate, today]);
+
+  const mainPetName = pets[0]?.name ?? "Tvoj psík";
+  const confetti = todayTotal > 0 && todayDone === todayTotal;
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+
+  function toggleWeekday(d: number) {
+    setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
+  }
+
+  async function refreshAll() {
+    try {
+      const [p, t, a, doneMap] = await Promise.all([
+        loadPets(),
+        loadTasksActive(),
+        loadTasksArchived(),
+        loadDoneInRange(),
+      ]);
+      setPets(p);
+      setTasks(t);
+      setArchivedTasks(a);
+      setDoneByDate(doneMap);
+    } catch (e: any) {
+      setError(e.message ?? "Refresh failed");
+    }
+  }
+
+  async function addPet() {
+    setSavingPet(true);
+    setError("");
+
+    const user = await requireUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const finalBreed =
+      petType === "dog" ? (petBreed === "CUSTOM" ? petBreedCustom.trim() : petBreed) : null;
+
+    const { error } = await supabase.from("pets").insert({
+      user_id: user.id,
+      name: petName.trim(),
+      type: petType,
+      breed: petType === "dog" ? (finalBreed || null) : null,
+      birthday: petBirthday ? petBirthday : null,
+    });
+
+    if (error) {
+      setSavingPet(false);
+      setError(error.message);
+      return;
+    }
+
+    setPetName("");
+    setPetBirthday("");
+    setPetBreed("Mix / Neviem");
+    setPetBreedCustom("");
+    setSavingPet(false);
+
+    await refreshAll();
+    setShowAddPet(false);
+  }
+
+  function openEditPet(p: Pet) {
+    setEditPetId(p.id);
+    setEditPetName(p.name);
+    setEditPetType(p.type);
+    const breed = p.breed ?? "Mix / Neviem";
+    if (p.type === "dog" && breed && !DOG_BREEDS.includes(breed)) {
+      setEditPetBreed("CUSTOM");
+      setEditPetBreedCustom(breed);
+    } else {
+      setEditPetBreed(breed);
+      setEditPetBreedCustom("");
+    }
+    setEditPetBirthday(p.birthday ?? "");
+  }
+
+  async function saveEditPet() {
+    if (!editPetId) return;
+
+    setError("");
+
+    const finalBreed =
+      editPetType === "dog" ? (editPetBreed === "CUSTOM" ? editPetBreedCustom.trim() : editPetBreed) : null;
+
+    const { error } = await supabase
+      .from("pets")
+      .update({
+        name: editPetName.trim(),
+        type: editPetType,
+        breed: editPetType === "dog" ? (finalBreed || null) : null,
+        birthday: editPetBirthday ? editPetBirthday : null,
+      })
+      .eq("id", editPetId);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setEditPetId(null);
+    await refreshAll();
+  }
+
+  async function removePet(p: Pet) {
+    const ok = confirm(`Naozaj chceš odstrániť miláčika "${p.name}"?\n\nNajprv odstráň alebo archivuj jeho úlohy.`);
+    if (!ok) return;
+
+    setError("");
+
+    const { data: t, error: tErr } = await supabase
+      .from("care_tasks")
+      .select("id")
+      .eq("pet_id", p.id)
+      .limit(1);
+
+    if (tErr) {
+      setError(tErr.message);
+      return;
+    }
+    if ((t ?? []).length > 0) {
+      setError("Najprv odstráň alebo archivuj úlohy tohto miláčika, potom ho môžeš zmazať.");
+      return;
+    }
+
+    const { error } = await supabase.from("pets").delete().eq("id", p.id);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await refreshAll();
+  }
+
+  async function addTask() {
+    setSavingTask(true);
+    setError("");
+
+    const user = await requireUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const payload: any = {
+      user_id: user.id,
+      pet_id: taskPetId,
+      title: taskTitle.trim(),
+      category: taskCategory,
+      repeat_type: repeatType,
+      start_date: startDate,
+      weekdays: repeatType === "weekly" ? weekdays : null,
+      is_archived: false,
+    };
+
+    const { error } = await supabase.from("care_tasks").insert(payload);
+
+    if (error) {
+      setSavingTask(false);
+      setError(error.message);
+      return;
+    }
+
+    setTaskTitle("");
+    setSavingTask(false);
+
+    await refreshAll();
+  }
+
+  async function markDoneOn(taskId: string, dateISO: string) {
+    setError("");
+    const user = await requireUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { error } = await supabase.from("task_completions").insert({
+      user_id: user.id,
+      task_id: taskId,
+      completed_on: dateISO,
+    });
+
+    if (error) {
+      const msg = String(error.message).toLowerCase();
+      if (!msg.includes("duplicate") && !msg.includes("unique")) setError(error.message);
+      return;
+    }
+
+    setDoneByDate((prev) => {
+      const next = new Map(prev);
+      if (!next.has(dateISO)) next.set(dateISO, new Set());
+      next.get(dateISO)!.add(taskId);
+      return next;
+    });
+  }
+
+  async function unmarkDoneOn(taskId: string, dateISO: string) {
+    setError("");
+    const user = await requireUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { error } = await supabase
+      .from("task_completions")
+      .delete()
+      .eq("task_id", taskId)
+      .eq("completed_on", dateISO);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setDoneByDate((prev) => {
+      const next = new Map(prev);
+      const set = next.get(dateISO);
+      if (set) {
+        set.delete(taskId);
+        if (set.size === 0) next.delete(dateISO);
+      }
+      return next;
+    });
+  }
+
+  async function archiveTask(taskId: string) {
+    setError("");
+    const { error } = await supabase.from("care_tasks").update({ is_archived: true }).eq("id", taskId);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await refreshAll();
+  }
+
+  async function restoreTask(taskId: string) {
+    setError("");
+    const { error } = await supabase.from("care_tasks").update({ is_archived: false }).eq("id", taskId);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await refreshAll();
+  }
+
+  async function deleteTaskForever(taskId: string) {
+    const ok = confirm("Naozaj chceš túto úlohu natrvalo odstrániť?");
+    if (!ok) return;
+
+    setError("");
+    const { error } = await supabase.from("care_tasks").delete().eq("id", taskId);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await refreshAll();
+  }
+
+  const weekCards = useMemo(() => {
+    const names: Record<number, string> = { 1: "Po", 2: "Ut", 3: "St", 4: "Št", 5: "Pi", 6: "So", 7: "Ne" };
+    return weekDaysIso.map((day) => {
+      const w = weekday1to7FromISO(day);
+      const due = tasks.filter((t) => isDueOnDate(t, day));
+      const doneSet = doneByDate.get(day) ?? new Set<string>();
+      const doneCount = due.filter((t) => doneSet.has(t.id)).length;
+      return { day, label: names[w], due, doneCount };
+    });
+  }, [weekDaysIso, tasks, doneByDate]);
+
+  if (loading) {
+    return (
+      <main className="relative min-h-screen">
+        <TodayBackground />
+        <div className="relative mx-auto max-w-4xl px-5 py-10">
+          <div className="rounded-[2rem] border border-black/10 bg-white/85 p-7 shadow-sm backdrop-blur animate-in fade-in duration-500">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-black/20 border-t-black"></div>
+              <div className="text-xl font-semibold text-black">Načítavam...</div>
+            </div>
+            <p className="mt-2 text-black/60">Pripravujem tvoj deň.</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-[#FDFDFD] p-6 lg:p-12 text-zinc-900">
-      <div className="mx-auto max-w-5xl">
-        
-        {/* Hlavička */}
-        <header className="mb-12 flex items-end justify-between">
-          <div>
-            <AppLogo />
-            <p className="mt-2 text-sm font-medium text-black/30">Dnes je {new Date().toLocaleDateString('sk-SK', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-          </div>
-          <div className="text-right">
-             <h1 className="text-4xl font-black italic tracking-tighter text-black/90">Môj Deň</h1>
-          </div>
-        </header>
+    <main className="relative min-h-screen">
+      <TodayBackground />
 
-        {/* Vyhľadávanie */}
-        <div className="relative mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-black/20" size={18} />
-          <input 
-            type="text" 
-            placeholder="Hľadať v úlohách..." 
-            className="w-full rounded-[2rem] border border-black/5 bg-white py-4 pl-12 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      <div className="relative mx-auto max-w-4xl px-5 py-10">
+        {/* Header */}
+        <div className="rounded-[2rem] border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:shadow-md animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="text-2xl md:text-3xl font-semibold tracking-tight text-black">MyPetsDay</div>
+              <div className="mt-1 text-sm md:text-base text-black/70">
+                {mainPetName} {todayLeft === 0 ? "má dnes hotovo všetko 🐾" : `čeká ešte ${todayLeft} úloh dnes.`}
+                {confetti ? <span className="ml-2 animate-bounce">🎉</span> : null}
+              </div>
+              <div className="mt-1 text-xs text-black/55">
+                Streak: <span className="font-semibold text-black">{streak}</span> dní po sebe si splnil aspoň 1 úlohu
+              </div>
+              <div className="mt-1 text-xs text-black/55">
+                Prihlásený: <span className="font-semibold text-black">{email ?? "—"}</span>
+              </div>
+            </div>
+
+            {/* LOGO vpravo hore */}
+            <div className="flex items-start gap-3 shrink-0">
+              <AppLogo size={90} className="drop-shadow-md" />
+              <button
+                onClick={signOut}
+                className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90 hover:shadow-md transition-all duration-300 active:scale-95"
+              >
+                Odhlásiť
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="flex items-center justify-between rounded-2xl border border-black/10 bg-white px-4 py-3 transition-all duration-300 hover:shadow-sm">
+              <div>
+                <div className="text-sm font-semibold text-black">Ranné pripomenutie</div>
+                <div className="text-xs text-black/55">Každý deň o 7:00 (email)</div>
+              </div>
+              <Toggle value={remind7} onChange={setRemind7} />
+            </div>
+
+            <button
+              onClick={refreshAll}
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-black/5 hover:shadow-sm transition-all duration-300 active:scale-95"
+            >
+              🔄 Refresh
+            </button>
+          </div>
+
+          {error && <p className="mt-3 text-sm text-red-700">❌ {error}</p>}
         </div>
 
-        {/* Zoznam úloh */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between mb-6 px-4">
-            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-black/20 italic">Aktuálne potreby</h2>
-            <span className="rounded-full bg-black px-3 py-1 text-[10px] font-bold text-white">{activeTasks.length} Úloh</span>
-          </div>
-
-          <div className="grid gap-3">
-            {activeTasks.length === 0 ? (
-              <div className="rounded-[2.5rem] border-2 border-dashed border-black/5 p-12 text-center">
-                <p className="text-sm font-medium italic text-black/20">Všetko je hotové, môžeš si oddýchnuť 🦴</p>
+        {/* Weekly overview */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur transition-all duration-300 hover:shadow-md animate-in fade-in slide-in-from-bottom-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-black/70">Týždenný progres</div>
+              <div className="mt-1 text-xl font-semibold text-black">
+                {weekCounts.done} z {weekCounts.total}
               </div>
-            ) : (
-              activeTasks.map(task => (
-                <div key={task.id} onClick={() => toggleTask(task.id, task.is_completed)} className="group flex cursor-pointer items-center justify-between rounded-[2rem] bg-white border border-black/[0.03] p-5 shadow-sm transition-all hover:shadow-md active:scale-[0.98]">
-                  <div className="flex items-center gap-4">
-                    <Circle className="text-black/10 transition-colors group-hover:text-black/30" />
-                    <span className="font-bold text-zinc-700">{task.title}</span>
-                  </div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-black/10">Klikni pre splnenie</div>
-                </div>
-              ))
-            )}
+            </div>
+            <RingProgress total={weekCounts.total} done={weekCounts.done} />
           </div>
-        </section>
 
-        {/* --- NOVÉ PET KARTY --- */}
-        <PetCareSection pets={pets} />
+          <div className="mt-5 overflow-x-auto">
+            <div className="flex gap-3 min-w-max">
+              {weekCards.map((c) => {
+                const pct = c.due.length === 0 ? 0 : Math.round((c.doneCount / c.due.length) * 100);
+                return (
+                  <div key={c.day} className="w-28 shrink-0 rounded-2xl border border-black/10 bg-white p-3 transition-all duration-300 hover:shadow-md hover:scale-105">
+                    <div className="text-sm font-semibold text-black">{c.label}</div>
+                    <div className="mt-2 text-xs text-black/60">{c.doneCount}/{c.due.length}</div>
+                    <div className="mt-2 h-2 rounded-full bg-black/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%`, background: progressColor(pct / 100) }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
-        {/* Archív (Zjednodušený) */}
-        <footer className="mt-20">
-          <button 
-            onClick={() => setShowArchive(!showArchive)}
-            className="mx-auto flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-black/20 hover:text-black/40 transition-colors"
-          >
-            <Archive size={14} /> {showArchive ? "Skryť históriu" : "Zobraziť históriu dňa"}
-          </button>
-          
-          {showArchive && (
-            <div className="mt-8 space-y-2 animate-in fade-in slide-in-from-top-4">
-              {archivedTasks.map(t => (
-                <div key={t.id} className="flex items-center gap-3 px-6 py-2 opacity-30 italic line-through text-sm">
-                  <CheckCircle2 size={14} /> {t.title}
+        {/* Pets */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur transition-all duration-300 hover:shadow-md">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-lg font-semibold text-black">🐾 Miláčikovia</div>
+            <button
+              onClick={() => setShowAddPet((v) => !v)}
+              className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-black/5 hover:shadow-sm transition-all duration-300 active:scale-95"
+            >
+              {showAddPet ? "Zavrieť" : "+ Pridať miláčika"}
+            </button>
+          </div>
+
+          {!showAddPet && pets.length > 0 && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {pets.map((p) => {
+                const binfo = calcBirthdayInfo(p.birthday);
+                const breedText =
+                  p.type === "dog"
+                    ? (p.breed ? `🐶 Plemeno: ${p.breed}` : "🐶 Psík")
+                    : p.type === "cat"
+                    ? "🐱 Mačička"
+                    : "🐾 Miláčik";
+
+                return (
+                  <div key={p.id} className="rounded-2xl border border-black/10 bg-white p-4 transition-all duration-300 hover:shadow-md hover:scale-[1.02]">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="text-lg font-semibold text-black">{p.name}</div>
+                        <div className="mt-1 text-sm text-black/65">{breedText}</div>
+
+                        {binfo ? (
+                          <div className="mt-2 text-xs text-black/55">
+                            Vek: <span className="font-semibold text-black">{binfo.years}</span> rokov{" "}
+                            <span className="font-semibold text-black">{binfo.daysSince}</span> dní •
+                            Do narodenín: <span className="font-semibold text-black">{binfo.daysToNext}</span> dní
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-xs text-black/45">Narodeniny: nezadané</div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => openEditPet(p)}
+                        className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-black/5 transition-all duration-300 active:scale-95 shrink-0"
+                      >
+                        Upraviť
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {showAddPet && (
+            <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="grid gap-3 md:grid-cols-3">
+                <input
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                  placeholder="Meno (napr. Bella)"
+                  value={petName}
+                  onChange={(e) => setPetName(e.target.value)}
+                />
+
+                <select
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                  value={petType}
+                  onChange={(e) => setPetType(e.target.value)}
+                >
+                  <option value="dog">Dog 🐶</option>
+                  <option value="cat">Cat 🐱</option>
+                  <option value="other">Other 🐾</option>
+                </select>
+
+                <input
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                  type="date"
+                  value={petBirthday}
+                  onChange={(e) => setPetBirthday(e.target.value)}
+                />
+              </div>
+
+              {petType === "dog" && (
+                <div className="mt-3">
+                  <label className="block text-sm font-semibold text-black">Plemeno</label>
+                  <select
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                    value={petBreed}
+                    onChange={(e) => setPetBreed(e.target.value)}
+                  >
+                    {DOG_BREEDS.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                    <option value="CUSTOM">Vlastné (napíšem)</option>
+                  </select>
+
+                  {petBreed === "CUSTOM" && (
+                    <input
+                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                      placeholder="Napíš plemeno"
+                      value={petBreedCustom}
+                      onChange={(e) => setPetBreedCustom(e.target.value)}
+                    />
+                  )}
                 </div>
+              )}
+
+              <button
+                onClick={addPet}
+                disabled={!petName.trim() || savingPet}
+                className="mt-4 rounded-2xl bg-black px-4 py-3 font-semibold text-white disabled:opacity-50 hover:opacity-90 hover:shadow-md transition-all duration-300 active:scale-95"
+              >
+                {savingPet ? "Ukladám..." : "Pridať miláčika"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Edit Pet */}
+        {editPetId && (
+          <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/90 p-6 shadow-sm backdrop-blur">
+            <div className="text-lg font-semibold text-black">Upraviť miláčika</div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <input
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                value={editPetName}
+                onChange={(e) => setEditPetName(e.target.value)}
+              />
+              <select
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                value={editPetType}
+                onChange={(e) => setEditPetType(e.target.value)}
+              >
+                <option value="dog">Dog 🐶</option>
+                <option value="cat">Cat 🐱</option>
+                <option value="other">Other 🐾</option>
+              </select>
+              <input
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                type="date"
+                value={editPetBirthday}
+                onChange={(e) => setEditPetBirthday(e.target.value)}
+              />
+            </div>
+
+            {editPetType === "dog" && (
+              <div className="mt-3">
+                <label className="block text-sm font-semibold text-black">Plemeno</label>
+                <select
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                  value={editPetBreed}
+                  onChange={(e) => setEditPetBreed(e.target.value)}
+                >
+                  {DOG_BREEDS.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                  <option value="CUSTOM">Vlastné (napíšem)</option>
+                </select>
+
+                {editPetBreed === "CUSTOM" && (
+                  <input
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+                    placeholder="Napíš plemeno"
+                    value={editPetBreedCustom}
+                    onChange={(e) => setEditPetBreedCustom(e.target.value)}
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                onClick={saveEditPet}
+                className="rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Uložiť
+              </button>
+              <button
+                onClick={() => setEditPetId(null)}
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-black/5"
+              >
+                Zrušiť
+              </button>
+
+              {(() => {
+                const p = pets.find((x) => x.id === editPetId);
+                if (!p) return null;
+                return (
+                  <button
+                    onClick={() => removePet(p)}
+                    className="ml-auto rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-100"
+                  >
+                    Odstrániť miláčika
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Add Task */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur transition-all duration-300 hover:shadow-md">
+          <div className="text-lg font-semibold text-black">➕ Pridať úlohu</div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <select
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+              value={taskPetId}
+              onChange={(e) => setTaskPetId(e.target.value)}
+              disabled={pets.length === 0}
+            >
+              {pets.length === 0 ? (
+                <option value="">Najprv pridaj miláčika</option>
+              ) : (
+                pets.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))
+              )}
+            </select>
+
+            <input
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black md:col-span-2"
+              placeholder="Názov (napr. Ranné venčenie)"
+              value={taskTitle}
+              onChange={(e) => setTaskTitle(e.target.value)}
+            />
+
+            <select
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+              value={taskCategory}
+              onChange={(e) => setTaskCategory(e.target.value)}
+            >
+              <option value="walk">Walk</option>
+              <option value="meds">Meds</option>
+              <option value="vet">Vet</option>
+              <option value="grooming">Grooming</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <select
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+              value={repeatType}
+              onChange={(e) => setRepeatType(e.target.value as any)}
+            >
+              <option value="none">One-time</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+
+            <input
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-black/10 text-black"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+
+            <div className="text-sm text-black/60 flex items-center">
+              {repeatType === "weekly" ? "Vyber dni nižšie" : " "}
+            </div>
+          </div>
+
+          {repeatType === "weekly" && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                [1, "Mon"], [2, "Tue"], [3, "Wed"], [4, "Thu"], [5, "Fri"], [6, "Sat"], [7, "Sun"],
+              ].map(([n, label]) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => toggleWeekday(n as number)}
+                  className={`rounded-2xl border px-3 py-2 text-sm font-semibold ${
+                    weekdays.includes(n as number)
+                      ? "border-black bg-black text-white"
+                      : "border-black/10 bg-white hover:bg-black/5 text-black"
+                  }`}
+                >
+                  {label}
+                </button>
               ))}
             </div>
           )}
 
-          <div className="mt-20 border-t border-black/5 pt-8 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-black/10">MyPetsDay • Všetko pre nich</p>
-          </div>
-        </footer>
+          <button
+            onClick={addTask}
+            disabled={pets.length === 0 || !taskPetId || !taskTitle.trim() || savingTask}
+            className="mt-4 w-full md:w-auto rounded-2xl bg-black px-5 py-3 font-semibold text-white disabled:opacity-50 hover:opacity-90 hover:shadow-md transition-all duration-300 active:scale-95"
+          >
+            {savingTask ? "Ukladám..." : "Pridať úlohu"}
+          </button>
+        </div>
 
+        {/* Today tasks */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/90 p-6 shadow-sm backdrop-blur transition-all duration-300 hover:shadow-md">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xl font-semibold text-black">✅ Dnešné úlohy</div>
+            <div className="text-sm text-black/60">{todayDone}/{todayTotal}</div>
+          </div>
+
+          <div className="mt-3 flex gap-2">
+            {[
+              ["all", "Všetko"],
+              ["open", "Nesplnené"],
+              ["done", "Splnené"],
+            ].map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setFilter(k as any)}
+                className={`rounded-2xl px-3 py-2 text-xs font-semibold border transition-all duration-300 active:scale-95 ${
+                  filter === k
+                    ? "bg-black text-white border-black shadow-sm"
+                    : "bg-white text-black border-black/10 hover:bg-black/5 hover:shadow-sm"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {tasksTodayAll.length === 0 ? (
+              <div className="rounded-2xl bg-black/[0.03] p-4 text-black/70">
+                Dnes nič nemáš. Pridaj úlohu a ideš ďalej 🟢
+              </div>
+            ) : tasksToday.length === 0 ? (
+              <div className="rounded-2xl bg-black/[0.03] p-4 text-black/70">
+                Podľa filtra tu nič nie je.
+              </div>
+            ) : (
+              tasksToday.map((t) => {
+                const done = isDone(t.id, today);
+                return (
+                  <div
+                    key={t.id}
+                    className={`rounded-2xl border px-4 py-3 transition-all duration-300 hover:shadow-md ${
+                      done ? "border-green-200 bg-green-50/50" : "border-black/10 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="font-semibold text-black">
+                          {done ? "✅" : "⬜"} {t.title}
+                          <span className="ml-2 text-sm text-black/55">
+                            • {petNameById.get(t.pet_id) ?? "Pet"} • {t.category}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-sm text-black/60">
+                          {t.repeat_type === "daily"
+                            ? "Opakuje sa: denne"
+                            : t.repeat_type === "weekly"
+                            ? "Opakuje sa: týždenne"
+                            : `Jednorazovo: ${t.start_date}`}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const ok = confirm(`Archivovať úlohu "${t.title}"?`);
+                            if (ok) archiveTask(t.id);
+                          }}
+                          className="mt-2 inline-flex items-center rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-black/5 transition-all duration-300 active:scale-95"
+                        >
+                          Archivovať
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2 shrink-0">
+                        {done ? (
+                          <button
+                            onClick={() => unmarkDoneOn(t.id, today)}
+                            className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 text-black transition-all duration-300 active:scale-95"
+                          >
+                            Undo
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => markDoneOn(t.id, today)}
+                            className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90 hover:shadow-md transition-all duration-300 active:scale-95"
+                          >
+                            Hotovo
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Archived */}
+        <div className="mt-6 rounded-[2rem] border border-black/10 bg-white/85 p-6 shadow-sm backdrop-blur transition-all duration-300 hover:shadow-md">
+          <div className="flex items-center justify-between">
+            <div className="text-lg font-semibold text-black">🗃️ Archivované</div>
+            <div className="text-sm text-black/60">{archivedTasks.length}</div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {archivedTasks.length === 0 ? (
+              <div className="rounded-2xl bg-black/[0.03] p-4 text-black/70">Zatiaľ nič.</div>
+            ) : (
+              archivedTasks.map((t) => (
+                <div
+                  key={t.id}
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 transition-all duration-300 hover:shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-black flex-1">
+                      {t.title} <span className="text-black/50">• {petNameById.get(t.pet_id) ?? "Pet"}</span>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => restoreTask(t.id)}
+                        className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-black/5 transition-all duration-300 active:scale-95"
+                      >
+                        Obnoviť
+                      </button>
+                      <button
+                        onClick={() => deleteTaskForever(t.id)}
+                        className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 transition-all duration-300 active:scale-95"
+                      >
+                        Odstrániť
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* ✅ TU SÚ PRIDANÉ 3 NOVÉ KARTY */}
+        {pets.length > 0 && (
+          <div className="mt-6 space-y-6">
+            <HealthCard pets={pets.map((p) => ({ id: p.id, name: p.name }))} />
+            <RecordsCard pets={pets.map((p) => ({ id: p.id, name: p.name }))} />
+            <CostsCard pets={pets.map((p) => ({ id: p.id, name: p.name }))} />
+          </div>
+        )}
+
+        <div className="mt-8 text-center text-xs text-black/50">
+          MyPetsDay 🦴 • Tvoje úlohy, tvoj pokoj.
+        </div>
       </div>
     </main>
   );
