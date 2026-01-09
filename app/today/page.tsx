@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AppLogo from "../components/AppLogo";
-import { HealthCard, RecordsCard, CostsCard } from "./ExtraPetCards";
+import { HealthCard, RecordsCard, CostsCard } from "./extraCards";
 
 type Pet = {
   id: string;
